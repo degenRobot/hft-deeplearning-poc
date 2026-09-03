@@ -9,16 +9,18 @@ export default function Home() {
   const market = useMarketGate();
   const statusMessage = market.configLoading
     ? "Loading runtime config…"
-    : market.status === "connecting"
-      ? market.state.health.feed_status === "reconnecting"
-        ? "Backend connected; the public market feed is reconnecting…"
-        : "Opening the backend socket; waiting for a ready snapshot…"
-      : market.lastError ||
-        (market.status === "connected"
-          ? market.state.source === "binance"
-            ? "Streaming Binance public market data"
-            : "Streaming the deterministic replay fixture"
-          : "Backend stream is not connected");
+    : market.state.health.feed_status === "failed"
+      ? `Market feed failed (${market.state.health.feed_error || "unknown error"}); adjust the config or reset the run.`
+      : market.status === "connecting"
+        ? market.state.health.feed_status === "reconnecting"
+          ? "Backend connected; the public market feed is reconnecting…"
+          : "Opening the backend socket; waiting for a ready snapshot…"
+        : market.lastError ||
+          (market.status === "connected"
+            ? market.state.source === "binance"
+              ? "Streaming Binance public market data"
+              : "Streaming the deterministic replay fixture"
+            : "Backend stream is not connected");
 
   return (
     <main className="shell">
