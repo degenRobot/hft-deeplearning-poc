@@ -11,6 +11,10 @@ from .feeds.binance import BinancePublicFeed
 from .feeds.replay import ReplayFeed, replay_schedule
 
 
+class FeedEndedError(RuntimeError):
+    """A producer returned without cancellation even though feeds are continuous."""
+
+
 class MarketRuntime:
     """Serializes stop/configure/start so a restart cannot leave an orphan feed task."""
 
@@ -94,6 +98,8 @@ class MarketRuntime:
             return
         except Exception as error:
             self._record_feed_failure(engine, error)
+        else:
+            self._record_feed_failure(engine, FeedEndedError("feed task ended"))
         finally:
             if task is self.feed_task:
                 self.feed_task = None
@@ -122,3 +128,4 @@ class MarketRuntime:
             raise
         except Exception as error:
             self._record_feed_failure(engine, error)
+            raise

@@ -67,3 +67,27 @@ def test_failed_feed_is_terminal_then_reset_and_stop_recover_cleanly() -> None:
         assert runtime.active_feed_tasks == 0
 
     asyncio.run(scenario())
+
+
+def test_feed_that_returns_normally_is_reported_as_failed(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        empty_fixture = tmp_path / "empty.jsonl"
+        empty_fixture.write_text("")
+        runtime = MarketRuntime(LabConfig(), ROOT / "models" / "gate-demo.npz", empty_fixture)
+        await runtime.start()
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert runtime.engine.feed_status == "failed"
+        assert runtime.feed_error == "FeedEndedError"
+        assert runtime.feed_task is None
+        assert runtime.active_feed_tasks == 0
+        reset = await runtime.reset()
+        assert reset["feed_generation"] == 2
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert runtime.engine.feed_status == "failed"
+        assert runtime.feed_error == "FeedEndedError"
+        assert runtime.feed_task is None
+        await runtime.stop()
+
+    asyncio.run(scenario())

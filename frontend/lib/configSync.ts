@@ -1,3 +1,6 @@
+import { configsEqual } from "./config";
+import type { AppConfig } from "./types";
+
 export interface ConfigRequestToken {
   requestGeneration: number;
   mutationGeneration: number;
@@ -13,6 +16,15 @@ export function isCurrentConfigResponse(
   );
 }
 
-export function shouldSeedDraft(draftWasEdited: boolean) {
-  return !draftWasEdited;
+export function mergeConfigResponse(
+  draftConfig: AppConfig,
+  appliedConfig: AppConfig,
+  canonical: AppConfig,
+) {
+  return {
+    appliedConfig: canonical,
+    draftConfig: configsEqual(draftConfig, appliedConfig)
+      ? canonical
+      : draftConfig,
+  };
 }

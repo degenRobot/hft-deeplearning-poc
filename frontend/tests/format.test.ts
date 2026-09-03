@@ -10,7 +10,10 @@ import {
 } from "../lib/config";
 import { DEFAULT_CONFIG } from "../lib/types";
 import { parseResetResponse } from "../lib/reset";
-import { isCurrentConfigResponse, shouldSeedDraft } from "../lib/configSync";
+import {
+  isCurrentConfigResponse,
+  mergeConfigResponse,
+} from "../lib/configSync";
 
 describe("format helpers", () => {
   it("formats signed values and percentages consistently", () => {
@@ -153,8 +156,23 @@ describe("config synchronization guards", () => {
     ).toBe(true);
   });
 
-  it("seeds draft config only before the user edits it", () => {
-    expect(shouldSeedDraft(false)).toBe(true);
-    expect(shouldSeedDraft(true)).toBe(false);
+  it("merges external config based on actual draft equality", () => {
+    const configA = { ...DEFAULT_CONFIG };
+    const configB = { ...configA, gate_interval_ms: 500 };
+    const configC = { ...configA, source: "binance" as const };
+    const editBackToA = {
+      ...configB,
+      gate_interval_ms: configA.gate_interval_ms,
+    };
+
+    expect(mergeConfigResponse(editBackToA, configA, configC)).toEqual({
+      draftConfig: configC,
+      appliedConfig: configC,
+    });
+
+    expect(mergeConfigResponse(configB, configA, configC)).toEqual({
+      draftConfig: configB,
+      appliedConfig: configC,
+    });
   });
 });

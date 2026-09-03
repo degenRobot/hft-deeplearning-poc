@@ -13,7 +13,7 @@ import { parseResetResponse } from "../lib/reset";
 import { parseStateMessage } from "../lib/normalize";
 import {
   isCurrentConfigResponse,
-  shouldSeedDraft,
+  mergeConfigResponse,
   type ConfigRequestToken,
 } from "../lib/configSync";
 import {
@@ -52,7 +52,8 @@ export function useMarketGate() {
   const configRequestGenerationRef = useRef(0);
   const configMutationGenerationRef = useRef(0);
   const configAbortRef = useRef<AbortController | null>(null);
-  const draftWasEditedRef = useRef(false);
+  const draftConfigRef = useRef<AppConfig>(DEFAULT_CONFIG);
+  const appliedConfigRef = useRef<AppConfig>(DEFAULT_CONFIG);
 
   const clearLiveState = useCallback(() => {
     setState(EMPTY_STATE);
@@ -90,8 +91,17 @@ export function useMarketGate() {
         throw new Error(`Config request returned ${response.status}`);
       const canonical = normalizeConfig(await response.json());
       if (!isCurrent()) return;
-      setAppliedConfig(canonical);
-      if (shouldSeedDraft(draftWasEditedRef.current)) setDraftConfig(canonical);
+      const merged = mergeConfigResponse(
+        draftConfigRef.current,
+        appliedConfigRef.current,
+        canonical,
+      );
+      appliedConfigRef.current = merged.appliedConfig;
+      setAppliedConfig(merged.appliedConfig);
+      if (merged.draftConfig !== draftConfigRef.current) {
+        draftConfigRef.current = merged.draftConfig;
+        setDraftConfig(merged.draftConfig);
+      }
       setSettingsError("");
     } catch (error: unknown) {
       if (error instanceof DOMException && error.name === "AbortError") return;
@@ -109,7 +119,6 @@ export function useMarketGate() {
 
   useEffect(() => {
     // Config state is synchronized by the async request, not this effect body.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void syncConfig();
     return () => configAbortRef.current?.abort();
   }, [syncConfig]);
@@ -183,8 +192,12 @@ export function useMarketGate() {
 
   const updateDraft = useCallback(
     (key: keyof AppConfig, value: string | number) => {
-      draftWasEditedRef.current = true;
-      setDraftConfig((current) => ({ ...current, [key]: value }) as AppConfig);
+      const next = {
+        ...draftConfigRef.current,
+        [key]: value,
+      } as AppConfig;
+      draftConfigRef.current = next;
+      setDraftConfig(next);
       setSettingsError("");
       setResetResult(null);
       setResetError("");
@@ -193,8 +206,9 @@ export function useMarketGate() {
   );
 
   const selectPreset = useCallback((id: PresetId) => {
-    draftWasEditedRef.current = true;
-    setDraftConfig((current) => ({ ...current, ...presetById(id).patch }));
+    const next = { ...draftConfigRef.current, ...presetById(id).patch };
+    draftConfigRef.current = next;
+    setDraftConfig(next);
     setSettingsError("");
     setResetResult(null);
     setResetError("");
@@ -202,13 +216,13 @@ export function useMarketGate() {
 
   const revertDraft = useCallback(() => {
     invalidateConfigReads();
-    draftWasEditedRef.current = false;
-    setDraftConfig(appliedConfig);
+    draftConfigRef.current = appliedConfigRef.current;
+    setDraftConfig(appliedConfigRef.current);
     setSettingsError("");
     setResetResult(null);
     setResetError("");
     void syncConfig();
-  }, [appliedConfig, invalidateConfigReads, syncConfig]);
+  }, [invalidateConfigReads, syncConfig]);
 
   const applyConfig = useCallback(async () => {
     const errors = validateConfig(draftConfig);
@@ -238,9 +252,10 @@ export function useMarketGate() {
       clearLiveState();
       setStatus("connecting");
       configMutationGenerationRef.current += 1;
+      appliedConfigRef.current = canonical;
+      draftConfigRef.current = canonical;
       setAppliedConfig(canonical);
       setDraftConfig(canonical);
-      draftWasEditedRef.current = false;
     } catch (error: unknown) {
       setSettingsError(
         error instanceof Error ? error.message : "Could not update config",
