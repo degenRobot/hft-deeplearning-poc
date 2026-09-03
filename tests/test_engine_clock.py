@@ -41,3 +41,25 @@ def test_missing_neural_artifact_is_reported_as_uniform_fallback() -> None:
     gate = engine.snapshot(now_ms=1_000)["gate"]
     assert gate["mode"] == "uniform-fallback"
     assert gate["model_version"] == "unavailable"
+
+
+def test_binance_events_share_receive_clock_when_exchange_times_differ() -> None:
+    engine = MarketEngine(LabConfig(gate_mode="uniform"))
+    live_book = BookEvent("binance", "BTCUSDT", 10_000, 10_000, 1, 99.0, 1.0, 101.0, 1.0)
+    delayed_trade = TradeEvent("binance", "BTCUSDT", 9_000, 10_001, 2, 101.0, 0.1, "buy")
+
+    assert engine.process(live_book) is not None
+    assert engine.process(delayed_trade) is not None
+    assert engine.last_ts_ms == 10_001
+
+
+def test_flow_expert_uses_a_bounded_recent_trade_window() -> None:
+    engine = MarketEngine(LabConfig(gate_mode="uniform"))
+    engine.process(book(1_000))
+    trades = [TradeEvent("replay", "BTCUSDT", 1_001, 1_001, 1, 101.0, 10.0, "buy")] + [
+        TradeEvent("replay", "BTCUSDT", 1_002 + index, 1_002 + index, index + 2, 99.0, 1.0, "sell")
+        for index in range(64)
+    ]
+    for trade in trades:
+        engine.process(trade)
+    assert engine.snapshot(now_ms=2_000)["market"]["trade_flow"] == -64.0

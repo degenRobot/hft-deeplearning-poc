@@ -33,15 +33,17 @@ class MarketEngine:
         self.last_gate_ts_ms = -config.gate_interval_ms
         self.gate_revision = 0
         self.effective_gate_mode = config.gate_mode
-        self.signed_volume = self.total_volume = 0.0
-        self.trade_arrivals = 0
+        self.recent_trades: deque[float] = deque(maxlen=64)
         self.fair_history: deque[float] = deque(maxlen=12)
         self.decision: DecisionFrame | None = None
 
     def process(
         self, event: BookEvent | TradeEvent, arrival_ts_ms: int | None = None
     ) -> DecisionFrame | None:
-        if event.event_ts_ms < self.last_ts_ms:
+        # Binance bookTicker has no exchange event time, so live events share the local
+        # receive clock for sequencing. Replay keeps its deterministic fixture clock.
+        sequence_ts_ms = event.receive_ts_ms if event.venue == "binance" else event.event_ts_ms
+        if sequence_ts_ms < self.last_ts_ms:
             return None
         # Close the prior second before this event mutates book/trade state.
         if self.bid > 0 and self.ask > 0:
@@ -54,7 +56,7 @@ class MarketEngine:
                 self.bid_size + self.ask_size, 1e-9
             )
             frame = self.features.close_before(
-                event.event_ts_ms,
+                sequence_ts_ms,
                 prior_mid,
                 prior_spread_bps,
                 prior_imbalance,
@@ -63,7 +65,7 @@ class MarketEngine:
             if frame is not None:
                 self.frames.append(frame.values)
         self.venue = event.venue
-        self.last_ts_ms = max(self.last_ts_ms, event.event_ts_ms)
+        self.last_ts_ms = sequence_ts_ms
         arrival_ts_ms = event.receive_ts_ms if arrival_ts_ms is None else arrival_ts_ms
         self.last_receive_ts_ms = max(self.last_receive_ts_ms, arrival_ts_ms)
         if isinstance(event, BookEvent):
@@ -78,9 +80,7 @@ class MarketEngine:
                     event, self.prior_quote, prior_mid, self.config.max_inventory
                 )
             signed = event.size if event.aggressor == "buy" else -event.size
-            self.signed_volume += signed
-            self.total_volume += event.size
-            self.trade_arrivals += 1
+            self.recent_trades.append(signed)
             self.features.observe_trade(event.size, event.aggressor)
         if self.bid <= 0 or self.ask <= 0:
             return None
@@ -90,14 +90,16 @@ class MarketEngine:
         microprice = (self.ask * self.bid_size + self.bid * self.ask_size) / max(
             self.bid_size + self.ask_size, 1e-9
         )
-        self.features.begin_second(event.event_ts_ms)
-        if event.event_ts_ms - self.last_gate_ts_ms >= self.config.gate_interval_ms:
-            self._refresh_weights(event.event_ts_ms)
+        self.features.begin_second(sequence_ts_ms)
+        if sequence_ts_ms - self.last_gate_ts_ms >= self.config.gate_interval_ms:
+            self._refresh_weights(sequence_ts_ms)
         fair = sum(self.fair_history) / len(self.fair_history) if self.fair_history else mid
         self.fair_history.append(mid)
+        signed_volume = sum(self.recent_trades)
+        total_volume = sum(abs(size) for size in self.recent_trades)
         scores = {
             "microprice": microprice_pressure(mid, imbalance, microprice),
-            "flow": trade_flow_impulse(self.signed_volume, self.total_volume, self.trade_arrivals),
+            "flow": trade_flow_impulse(signed_volume, total_volume, len(self.recent_trades)),
             "reversion": short_reversion(mid, fair),
         }
         contributions = {
@@ -109,14 +111,14 @@ class MarketEngine:
             observed_spread_bps=spread_bps,
             signal=signal,
             inventory=self.paper.inventory,
-            now_ms=event.event_ts_ms,
-            message_ts_ms=self.last_ts_ms,
+            now_ms=arrival_ts_ms,
+            message_ts_ms=event.event_ts_ms,
             base_spread_bps=self.config.base_spread_bps,
             max_inventory=self.config.max_inventory,
             stale_after_ms=self.config.stale_after_ms,
         )
         self.decision = DecisionFrame(
-            event.event_ts_ms,
+            sequence_ts_ms,
             scores,
             self.weights.copy(),
             contributions,
@@ -181,7 +183,7 @@ class MarketEngine:
                 "spread_bps": spread_bps,
                 "imbalance": imbalance,
                 "last_trade": self.last_trade,
-                "trade_flow": self.signed_volume,
+                "trade_flow": sum(self.recent_trades),
             },
             "gate": {
                 "mode": self.effective_gate_mode,

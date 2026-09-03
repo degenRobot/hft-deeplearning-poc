@@ -24,3 +24,13 @@ def test_stopped_feed_snapshot_hides_prior_quote() -> None:
     engine = MarketEngine(LabConfig(stale_after_ms=100))
     engine.process(BookEvent("replay", "BTCUSDT", 1_000, 1_000, 1, 99.0, 1.0, 101.0, 1.0))
     assert engine.snapshot(now_ms=1_101)["quote"] is None
+
+
+def test_delayed_event_cannot_produce_a_quote() -> None:
+    engine = MarketEngine(LabConfig(stale_after_ms=100))
+    decision = engine.process(
+        BookEvent("replay", "BTCUSDT", 1_000, 100_000, 1, 99.0, 1.0, 101.0, 1.0)
+    )
+    assert decision is not None
+    assert decision.quote is None
+    assert decision.risk_reason == "stale_data"

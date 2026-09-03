@@ -39,6 +39,7 @@ def create_app(config_path: str | Path = "configs/demo.toml") -> FastAPI:
     engine = MarketEngine(config, model_path)
     fixture = root / "fixtures" / "replay.jsonl"
     feed_task: asyncio.Task[None] | None = None
+    lifecycle_lock = asyncio.Lock()
 
     def fresh_engine() -> MarketEngine:
         replacement = MarketEngine(config, model_path)
@@ -123,15 +124,16 @@ def create_app(config_path: str | Path = "configs/demo.toml") -> FastAPI:
     async def patch_config(patch: ConfigPatch) -> dict[str, object]:
         nonlocal engine, feed_task
         values = patch.model_dump(exclude_none=True)
-        try:
-            config.patch(values)
-        except ValueError as error:
-            raise HTTPException(status_code=422, detail=str(error)) from error
-        # Replacing the engine makes a source or symbol change explicit and avoids mixing feeds.
-        await stop_feed()
-        engine = fresh_engine()
-        start_feed()
-        return config.public()
+        async with lifecycle_lock:
+            try:
+                config.patch(values)
+            except ValueError as error:
+                raise HTTPException(status_code=422, detail=str(error)) from error
+            # One lock owns stop/config/engine/start so concurrent patches cannot orphan feeds.
+            await stop_feed()
+            engine = fresh_engine()
+            start_feed()
+            return config.public()
 
     @app.get("/ledger")
     async def ledger() -> list[dict[str, object]]:
