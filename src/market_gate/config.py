@@ -16,6 +16,7 @@ class LabConfig:
     base_spread_bps: float = 2.0
     max_inventory: float = 0.5
     stale_after_ms: int = 2500
+    flow_window_trades: int = 64
 
     def validate(self) -> None:
         if self.source not in {"replay", "binance"}:
@@ -40,6 +41,8 @@ class LabConfig:
             raise ValueError("max_inventory must be between 0.001 and 1000000")
         if not 100 <= self.stale_after_ms <= 60_000:
             raise ValueError("stale_after_ms must be between 100 and 60000")
+        if not 4 <= self.flow_window_trades <= 512:
+            raise ValueError("flow_window_trades must be between 4 and 512")
 
     def patch(self, values: dict[str, object]) -> None:
         permitted = set(asdict(self))

@@ -54,12 +54,23 @@ def test_binance_events_share_receive_clock_when_exchange_times_differ() -> None
 
 
 def test_flow_expert_uses_a_bounded_recent_trade_window() -> None:
-    engine = MarketEngine(LabConfig(gate_mode="uniform"))
+    engine = MarketEngine(LabConfig(gate_mode="uniform", flow_window_trades=4))
     engine.process(book(1_000))
     trades = [TradeEvent("replay", "BTCUSDT", 1_001, 1_001, 1, 101.0, 10.0, "buy")] + [
         TradeEvent("replay", "BTCUSDT", 1_002 + index, 1_002 + index, index + 2, 99.0, 1.0, "sell")
-        for index in range(64)
+        for index in range(4)
     ]
     for trade in trades:
         engine.process(trade)
-    assert engine.snapshot(now_ms=2_000)["market"]["trade_flow"] == -64.0
+    assert list(engine.recent_trades) == [-1.0, -1.0, -1.0, -1.0]
+    assert engine.snapshot(now_ms=2_000)["market"]["trade_flow"] == -4.0
+
+
+def test_event_counters_distinguish_accepted_and_late_events() -> None:
+    engine = MarketEngine(LabConfig(gate_mode="uniform"))
+    engine.process(book(2_000))
+    engine.process(TradeEvent("replay", "BTCUSDT", 1_000, 1_000, 8, 99.0, 4.0, "sell"))
+    health = engine.snapshot(now_ms=2_000)["health"]
+    assert health["events_processed"] == 1
+    assert health["late_events_dropped"] == 1
+    assert health["feed_generation"] == 0

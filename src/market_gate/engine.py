@@ -26,6 +26,9 @@ class MarketEngine:
         self.venue = config.source
         self.reconnects = 0
         self.feed_status = "starting"
+        self.feed_generation = 0
+        self.events_processed = 0
+        self.late_events_dropped = 0
         self.run_id = "unstarted"
         self.paper = PaperLedger()
         self.prior_quote: dict[str, float] | None = None
@@ -33,7 +36,7 @@ class MarketEngine:
         self.last_gate_ts_ms = -config.gate_interval_ms
         self.gate_revision = 0
         self.effective_gate_mode = config.gate_mode
-        self.recent_trades: deque[float] = deque(maxlen=64)
+        self.recent_trades: deque[float] = deque(maxlen=config.flow_window_trades)
         self.fair_history: deque[float] = deque(maxlen=12)
         self.decision: DecisionFrame | None = None
 
@@ -44,7 +47,9 @@ class MarketEngine:
         # receive clock for sequencing. Replay keeps its deterministic fixture clock.
         sequence_ts_ms = event.receive_ts_ms if event.venue == "binance" else event.event_ts_ms
         if sequence_ts_ms < self.last_ts_ms:
+            self.late_events_dropped += 1
             return None
+        self.events_processed += 1
         # Close the prior second before this event mutates book/trade state.
         if self.bid > 0 and self.ask > 0:
             prior_mid = (self.bid + self.ask) / 2
@@ -217,6 +222,9 @@ class MarketEngine:
                 "run_id": self.run_id,
                 "message_age_ms": message_age_ms,
                 "reconnects": self.reconnects,
+                "events_processed": self.events_processed,
+                "late_events_dropped": self.late_events_dropped,
+                "feed_generation": self.feed_generation,
             },
         }
 

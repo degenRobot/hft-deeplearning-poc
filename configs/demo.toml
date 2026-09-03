@@ -8,3 +8,4 @@ expert_strength = 1.0
 base_spread_bps = 2.0
 max_inventory = 0.50
 stale_after_ms = 2500
+flow_window_trades = 64
