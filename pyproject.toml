@@ -1,0 +1,23 @@
+[project]
+name = "market-gate-lab"
+version = "0.1.0"
+description = "Read-only market microstructure replay lab"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["fastapi>=0.115", "uvicorn>=0.30", "websockets>=13", "numpy>=2.0"]
+
+[project.optional-dependencies]
+training = ["torch>=2.4"]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["notebooks"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
