@@ -2,6 +2,7 @@
 
 import asyncio
 import time
+import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -9,11 +10,12 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from starlette.websockets import WebSocketDisconnect
 
 from .config import load_config
 from .engine import MarketEngine
 from .feeds.binance import BinancePublicFeed
-from .feeds.replay import ReplayFeed
+from .feeds.replay import ReplayFeed, replay_schedule
 
 
 class ConfigPatch(BaseModel):
@@ -25,26 +27,56 @@ class ConfigPatch(BaseModel):
     expert_strength: float | None = None
     base_spread_bps: float | None = None
     max_inventory: float | None = None
+    stale_after_ms: int | None = None
 
 
 def create_app(config_path: str | Path = "configs/demo.toml") -> FastAPI:
     config = load_config(config_path)
-    engine = MarketEngine(config)
-    fixture = Path(__file__).parents[2] / "fixtures" / "replay.jsonl"
+    root = Path(__file__).parents[2]
+    model_path = root / "models" / "gate-demo.npz"
+    engine = MarketEngine(config, model_path)
+    fixture = root / "fixtures" / "replay.jsonl"
     feed_task: asyncio.Task[None] | None = None
+
+    def fresh_engine() -> MarketEngine:
+        replacement = MarketEngine(config, model_path)
+        replacement.run_id = uuid.uuid4().hex[:12]
+        return replacement
+
+    async def stop_feed() -> None:
+        nonlocal feed_task
+        if feed_task is not None:
+            feed_task.cancel()
+            try:
+                await feed_task
+            except asyncio.CancelledError:
+                pass
+            feed_task = None
+
+    def start_feed() -> None:
+        nonlocal feed_task
+        feed_task = asyncio.create_task(run_feed())
 
     async def run_feed() -> None:
         """Continuously own one public/replay feed; config changes replace this task."""
         nonlocal engine
         if config.source == "replay":
-            while config.source == "replay":
-                for event in ReplayFeed(fixture):
-                    if config.source != "replay":
-                        return
-                    engine.process(event, arrival_ts_ms=int(time.time() * 1000))
-                    await asyncio.sleep(0.10)
+            engine.feed_status = "replay_loading"
+            events = list(ReplayFeed(fixture))
+            for scheduled in replay_schedule(events, int(time.time() * 1000), cycles=None):
+                if config.source != "replay":
+                    return
+                if scheduled.delay_ms:
+                    await asyncio.sleep(scheduled.delay_ms / 1_000)
+                engine.process(scheduled.event, arrival_ts_ms=int(time.time() * 1000))
+                engine.feed_status = "running"
         else:
-            feed = BinancePublicFeed(config.symbol)
+
+            def update_feed_status(status: str) -> None:
+                engine.feed_status = status
+                engine.reconnects = feed.reconnects
+
+            feed = BinancePublicFeed(config.symbol, update_feed_status)
             async for event in feed.events():
                 if config.source != "binance":
                     return
@@ -53,8 +85,10 @@ def create_app(config_path: str | Path = "configs/demo.toml") -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        nonlocal feed_task
-        feed_task = asyncio.create_task(run_feed())
+        nonlocal engine, feed_task
+        await stop_feed()
+        engine = fresh_engine()
+        start_feed()
         try:
             yield
         finally:
@@ -92,10 +126,9 @@ def create_app(config_path: str | Path = "configs/demo.toml") -> FastAPI:
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         # Replacing the engine makes a source or symbol change explicit and avoids mixing feeds.
-        engine = MarketEngine(config)
-        if feed_task is not None:
-            feed_task.cancel()
-        feed_task = asyncio.create_task(run_feed())
+        await stop_feed()
+        engine = fresh_engine()
+        start_feed()
         return config.public()
 
     @app.get("/ledger")
@@ -105,9 +138,12 @@ def create_app(config_path: str | Path = "configs/demo.toml") -> FastAPI:
     @app.websocket("/ws/market")
     async def market_socket(websocket: WebSocket) -> None:
         await websocket.accept()
-        while True:
-            await websocket.send_json(engine.snapshot())
-            await asyncio.sleep(0.1)
+        try:
+            while True:
+                await websocket.send_json(engine.snapshot())
+                await asyncio.sleep(0.1)
+        except WebSocketDisconnect:
+            return
 
     return app
 

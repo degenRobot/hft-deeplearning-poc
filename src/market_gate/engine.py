@@ -7,14 +7,15 @@ from .config import LabConfig
 from .contracts import BookEvent, DecisionFrame, TradeEvent
 from .experts import EXPERT_IDS, microprice_pressure, short_reversion, trade_flow_impulse
 from .features import FeatureBuilder
-from .gate import TinyMLPGate, blend_and_smooth, static_weights, uniform_weights
+from .gate import blend_and_smooth, load_numpy_gate, static_weights, uniform_weights
+from .paper import PaperLedger
 from .risk import make_quote
 
 
 class MarketEngine:
     def __init__(self, config: LabConfig, model_path: str | None = None) -> None:
         self.config = config
-        self.gate = TinyMLPGate(model_path)
+        self.gate = load_numpy_gate(model_path)
         self.features = FeatureBuilder()
         self.frames: deque[tuple[float, ...]] = deque(maxlen=30)
         self.ledger: deque[dict[str, object]] = deque(maxlen=300)
@@ -24,9 +25,14 @@ class MarketEngine:
         self.last_receive_ts_ms = 0
         self.venue = config.source
         self.reconnects = 0
-        self.inventory = self.pnl = 0.0
+        self.feed_status = "starting"
+        self.run_id = "unstarted"
+        self.paper = PaperLedger()
+        self.prior_quote: dict[str, float] | None = None
         self.weights = uniform_weights()
         self.last_gate_ts_ms = -config.gate_interval_ms
+        self.gate_revision = 0
+        self.effective_gate_mode = config.gate_mode
         self.signed_volume = self.total_volume = 0.0
         self.trade_arrivals = 0
         self.fair_history: deque[float] = deque(maxlen=12)
@@ -35,6 +41,27 @@ class MarketEngine:
     def process(
         self, event: BookEvent | TradeEvent, arrival_ts_ms: int | None = None
     ) -> DecisionFrame | None:
+        if event.event_ts_ms < self.last_ts_ms:
+            return None
+        # Close the prior second before this event mutates book/trade state.
+        if self.bid > 0 and self.ask > 0:
+            prior_mid = (self.bid + self.ask) / 2
+            prior_spread_bps = 10_000 * (self.ask - self.bid) / prior_mid
+            prior_imbalance = (self.bid_size - self.ask_size) / max(
+                self.bid_size + self.ask_size, 1e-9
+            )
+            prior_microprice = (self.ask * self.bid_size + self.bid * self.ask_size) / max(
+                self.bid_size + self.ask_size, 1e-9
+            )
+            frame = self.features.close_before(
+                event.event_ts_ms,
+                prior_mid,
+                prior_spread_bps,
+                prior_imbalance,
+                prior_microprice,
+            )
+            if frame is not None:
+                self.frames.append(frame.values)
         self.venue = event.venue
         self.last_ts_ms = max(self.last_ts_ms, event.event_ts_ms)
         arrival_ts_ms = event.receive_ts_ms if arrival_ts_ms is None else arrival_ts_ms
@@ -42,8 +69,14 @@ class MarketEngine:
         if isinstance(event, BookEvent):
             self.bid, self.bid_size = event.bid_price, event.bid_size
             self.ask, self.ask_size = event.ask_price, event.ask_size
+            self.features.observe_book()
         else:
             self.last_trade = event.price
+            prior_mid = (self.bid + self.ask) / 2 if self.bid and self.ask else event.price
+            if self.prior_quote is not None:
+                self.paper.observe_trade(
+                    event, self.prior_quote, prior_mid, self.config.max_inventory
+                )
             signed = event.size if event.aggressor == "buy" else -event.size
             self.signed_volume += signed
             self.total_volume += event.size
@@ -57,10 +90,7 @@ class MarketEngine:
         microprice = (self.ask * self.bid_size + self.bid * self.ask_size) / max(
             self.bid_size + self.ask_size, 1e-9
         )
-        self.features.observe_book(mid)
-        frame = self.features.advance(event.event_ts_ms, mid, spread_bps, imbalance, microprice)
-        if frame is not None:
-            self.frames.append(frame.values)
+        self.features.begin_second(event.event_ts_ms)
         if event.event_ts_ms - self.last_gate_ts_ms >= self.config.gate_interval_ms:
             self._refresh_weights(event.event_ts_ms)
         fair = sum(self.fair_history) / len(self.fair_history) if self.fair_history else mid
@@ -78,7 +108,7 @@ class MarketEngine:
             mid=mid,
             observed_spread_bps=spread_bps,
             signal=signal,
-            inventory=self.inventory,
+            inventory=self.paper.inventory,
             now_ms=event.event_ts_ms,
             message_ts_ms=self.last_ts_ms,
             base_spread_bps=self.config.base_spread_bps,
@@ -94,17 +124,25 @@ class MarketEngine:
             outcome.reason,
         )
         self.ledger.append(self.decision.as_dict())
+        self.prior_quote = outcome.quote
         return self.decision
 
     def _refresh_weights(self, timestamp_ms: int) -> None:
         self.last_gate_ts_ms = timestamp_ms
+        self.gate_revision += 1
         if self.config.gate_mode == "uniform":
             proposed = uniform_weights()
+            self.effective_gate_mode = "uniform"
         elif self.config.gate_mode == "static":
             proposed = static_weights()
+            self.effective_gate_mode = "static"
+        elif self.gate is None:
+            proposed = uniform_weights()
+            self.effective_gate_mode = "uniform-fallback"
         else:
             padded = [(0.0,) * 10] * max(0, 30 - len(self.frames)) + list(self.frames)
             proposed = self.gate.predict(padded)
+            self.effective_gate_mode = "neural"
         self.weights = blend_and_smooth(proposed, self.weights, self.config.higher_level_influence)
 
     def snapshot(self, now_ms: int | None = None) -> dict[str, object]:
@@ -119,8 +157,15 @@ class MarketEngine:
         )
         message_age_ms = max(0, now_ms - self.last_receive_ts_ms)
         quote = self.decision.quote if self.decision else None
+        risk_reason = self.decision.risk_reason if self.decision else "waiting_for_data"
         if message_age_ms > self.config.stale_after_ms:
             quote = None
+            risk_reason = "stale_data"
+        ready = (
+            self.last_ts_ms > 0
+            and self.feed_status == "running"
+            and message_age_ms <= self.config.stale_after_ms
+        )
         return {
             "timestamp": self.last_ts_ms,
             "source": self.venue,
@@ -133,12 +178,16 @@ class MarketEngine:
                 "trade_flow": self.signed_volume,
             },
             "gate": {
-                "mode": self.config.gate_mode,
+                "mode": self.effective_gate_mode,
                 "regime": "demo",
                 "confidence": max(self.weights.values()),
                 "weights": self.weights.copy(),
                 "cadence_ms": self.config.gate_interval_ms,
-                "model_version": self.gate.model_version,
+                "model_version": self.gate.model_version if self.gate else "unavailable",
+                "revision": self.gate_revision,
+                "next_refresh_ms": max(
+                    0, self.last_gate_ts_ms + self.config.gate_interval_ms - now_ms
+                ),
             },
             "experts": [
                 {
@@ -151,9 +200,13 @@ class MarketEngine:
                 for key in EXPERT_IDS
             ],
             "quote": quote,
-            "paper": {"inventory": self.inventory, "pnl": self.pnl},
+            "paper": {"inventory": self.paper.inventory, "pnl": self.paper.pnl},
             "health": {
                 "status": "ok" if quote else "guarded",
+                "ready": ready,
+                "feed_status": self.feed_status,
+                "risk_reason": risk_reason,
+                "run_id": self.run_id,
                 "message_age_ms": message_age_ms,
                 "reconnects": self.reconnects,
             },

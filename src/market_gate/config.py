@@ -24,10 +24,16 @@ class LabConfig:
             raise ValueError("gate_mode must be neural, uniform, or static")
         if not 0.0 <= self.higher_level_influence <= 1.0:
             raise ValueError("higher_level_influence must be between 0 and 1")
-        if self.gate_interval_ms < 100:
-            raise ValueError("gate_interval_ms must be at least 100")
-        if self.base_spread_bps <= 0 or self.max_inventory <= 0 or self.stale_after_ms <= 0:
-            raise ValueError("risk limits must be positive")
+        if not 100 <= self.gate_interval_ms <= 60_000:
+            raise ValueError("gate_interval_ms must be between 100 and 60000")
+        if not 0.0 <= self.expert_strength <= 5.0:
+            raise ValueError("expert_strength must be between 0 and 5")
+        if not 0.01 <= self.base_spread_bps <= 1_000.0:
+            raise ValueError("base_spread_bps must be between 0.01 and 1000")
+        if not 0.001 <= self.max_inventory <= 1_000_000.0:
+            raise ValueError("max_inventory must be between 0.001 and 1000000")
+        if not 100 <= self.stale_after_ms <= 60_000:
+            raise ValueError("stale_after_ms must be between 100 and 60000")
 
     def patch(self, values: dict[str, object]) -> None:
         permitted = set(asdict(self))

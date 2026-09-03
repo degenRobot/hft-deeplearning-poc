@@ -30,4 +30,7 @@ def make_quote(
     half_bps = max(base_spread_bps / 2, observed_spread_bps / 2)
     fair = mid * (1 + signal * 0.00004 - inventory / max_inventory * 0.00003)
     half = fair * half_bps / 10_000
-    return QuoteResult({"bid": round(fair - half, 2), "ask": round(fair + half, 2)}, None)
+    quote = {"bid": round(fair - half, 2), "ask": round(fair + half, 2)}
+    if quote["bid"] <= 0 or quote["ask"] <= quote["bid"]:
+        return QuoteResult(None, "invalid_quote")
+    return QuoteResult(quote, None)

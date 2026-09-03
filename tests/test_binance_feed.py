@@ -2,18 +2,18 @@ from market_gate.contracts import BookEvent, TradeEvent
 from market_gate.feeds.binance import BinancePublicFeed
 
 
-def test_book_ticker_without_event_time_uses_receive_time() -> None:
+def test_combined_book_ticker_without_event_type_or_time_uses_receive_time() -> None:
     event = BinancePublicFeed.normalize(
         {
+            "stream": "btcusdt@bookTicker",
             "data": {
-                "e": "bookTicker",
                 "u": 7,
                 "s": "BTCUSDT",
                 "b": "99",
                 "B": "1",
                 "a": "101",
                 "A": "2",
-            }
+            },
         },
         receive_ts_ms=123_456,
     )

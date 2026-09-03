@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import numpy as np
 import torch
 from torch import nn
 
@@ -20,9 +21,19 @@ def main() -> None:
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-    destination = Path("artifacts/gate-demo.pt")
+    destination = Path("models/gate-demo.npz")
     destination.parent.mkdir(exist_ok=True)
-    torch.save(model.state_dict(), destination)
+    first, second, third = (layer for layer in model if isinstance(layer, nn.Linear))
+    np.savez(
+        destination,
+        schema_version=np.array("gate-npz-v1"),
+        w1=first.weight.detach().numpy().T,
+        b1=first.bias.detach().numpy(),
+        w2=second.weight.detach().numpy().T,
+        b2=second.bias.detach().numpy(),
+        w3=third.weight.detach().numpy().T,
+        b3=third.bias.detach().numpy(),
+    )
     print(f"saved {destination}")
 
 

@@ -1,4 +1,4 @@
-"""Weight policy and optional PyTorch 300 -> 64 -> 32 -> 3 gate."""
+"""Torch-free runtime inference for the compact 300 -> 64 -> 32 -> 3 gate."""
 
 from collections.abc import Sequence
 from pathlib import Path
@@ -23,40 +23,36 @@ def uniform_weights() -> dict[str, float]:
     return normalize((1.0, 1.0, 1.0))
 
 
-class TinyMLPGate:
-    """Optional trainable gate. It is never an execution authority."""
+class NumpyMLPGate:
+    """A small exported MLP. Loading/inference deliberately has no Torch dependency."""
 
-    model_version = "unloaded-demo-v1"
-
-    def __init__(self, model_path: str | None = None) -> None:
-        self.model = None
-        if model_path and Path(model_path).exists():
-            import torch
-
-            self.model = torch.nn.Sequential(
-                torch.nn.Linear(300, 64),
-                torch.nn.ReLU(),
-                torch.nn.Linear(64, 32),
-                torch.nn.ReLU(),
-                torch.nn.Linear(32, 3),
-            )
-            state = torch.load(model_path, map_location="cpu", weights_only=True)
-            self.model.load_state_dict(state)
-            self.model.eval()
-            self.model_version = Path(model_path).stem
+    def __init__(self, model_path: str | Path) -> None:
+        self.path = Path(model_path)
+        with np.load(self.path) as artifact:
+            self.w1 = artifact["w1"]
+            self.b1 = artifact["b1"]
+            self.w2 = artifact["w2"]
+            self.b2 = artifact["b2"]
+            self.w3 = artifact["w3"]
+            self.b3 = artifact["b3"]
+            schema = artifact["schema_version"]
+        if schema.item() != "gate-npz-v1" or self.w1.shape != (300, 64) or self.w3.shape != (32, 3):
+            raise ValueError("unsupported gate artifact schema or dimensions")
+        self.model_version = self.path.stem
 
     def predict(self, window: Sequence[Sequence[float]]) -> dict[str, float]:
         flat = np.asarray(window, dtype=np.float32).reshape(-1)
         if flat.size != 300:
             raise ValueError("gate requires a causal 30 x 10 feature window")
-        if self.model is not None:
-            import torch
+        hidden_1 = np.maximum(flat @ self.w1 + self.b1, 0)
+        hidden_2 = np.maximum(hidden_1 @ self.w2 + self.b2, 0)
+        logits = hidden_2 @ self.w3 + self.b3
+        logits -= logits.max()
+        return normalize(np.exp(np.clip(logits, -50, 50)))
 
-            with torch.no_grad():
-                return normalize(torch.softmax(self.model(torch.from_numpy(flat)), dim=0).numpy())
-        # A deterministic demonstration policy keeps replay useful before training.
-        logits = (flat[-5] * 4 + flat[-6] * 1000, flat[-4] * 2, -flat[-1] * 800)
-        return normalize(np.exp(np.clip(logits, -4, 4)))
+
+def load_numpy_gate(model_path: str | Path | None) -> NumpyMLPGate | None:
+    return NumpyMLPGate(model_path) if model_path and Path(model_path).exists() else None
 
 
 def blend_and_smooth(
