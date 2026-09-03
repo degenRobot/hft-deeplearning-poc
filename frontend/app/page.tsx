@@ -11,7 +11,7 @@ const API_URL = (process.env.NEXT_PUBLIC_API_URL || API_DEFAULT).replace(/\/$/, 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 function ConnectionPill({ status }: { status: ConnectionStatus }) {
-  const labels: Record<ConnectionStatus, string> = { connecting: "Connecting", connected: "Live feed", disconnected: "Disconnected", error: "Connection error" };
+  const labels: Record<ConnectionStatus, string> = { connecting: "Connecting", connected: "Connected", disconnected: "Disconnected", error: "Connection error" };
   return <span className={`connection-pill ${status}`}><span className="status-dot" />{labels[status]}</span>;
 }
 
@@ -149,8 +149,13 @@ export default function Home() {
     if (status === "connecting") return "Connecting to backend…";
     if (status === "connected" && !hasSnapshot) return "Connected; waiting for first snapshot…";
     if (lastError) return lastError;
+    if (status === "connected") {
+      return state.source === "binance"
+        ? "Streaming Binance public market data"
+        : "Streaming the deterministic replay fixture";
+    }
     return "Backend stream is not connected";
-  }, [configLoading, hasSnapshot, lastError, status]);
+  }, [configLoading, hasSnapshot, lastError, state.source, status]);
 
   const empty = !hasSnapshot;
   return <main className="shell">
