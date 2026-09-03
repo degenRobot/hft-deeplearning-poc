@@ -23,15 +23,19 @@ export interface MarketGateState {
   gate: {
     mode: GateMode;
     regime: string;
-    confidence: number;
     weights: { microprice: number; flow: number; reversion: number };
     cadence_ms: number;
+    next_refresh_ms: number;
+    revision: number;
     model_version: string;
   };
   experts: Expert[];
   quote: { bid: number; ask: number } | null;
   paper: { inventory: number; pnl: number };
-  health: { status: string; message_age_ms: number; reconnects: number };
+  health: { status: string; ready: boolean; message_age_ms: number; reconnects: number };
+  feed_status: string;
+  risk_reason: string;
+  run_id: string;
 }
 
 export interface AppConfig {
@@ -66,9 +70,10 @@ export const EMPTY_STATE: MarketGateState = {
   gate: {
     mode: "neural",
     regime: "awaiting feed",
-    confidence: 0,
     weights: { microprice: 0, flow: 0, reversion: 0 },
     cadence_ms: 1000,
+    next_refresh_ms: 0,
+    revision: -1,
     model_version: "—",
   },
   experts: [
@@ -78,5 +83,8 @@ export const EMPTY_STATE: MarketGateState = {
   ],
   quote: null,
   paper: { inventory: 0, pnl: 0 },
-  health: { status: "waiting", message_age_ms: 0, reconnects: 0 },
+  health: { status: "waiting", ready: false, message_age_ms: 0, reconnects: 0 },
+  feed_status: "waiting",
+  risk_reason: "Waiting for a ready backend snapshot",
+  run_id: "",
 };

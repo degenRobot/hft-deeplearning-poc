@@ -29,8 +29,9 @@ export function normalizeState(input: unknown): MarketGateState | null {
   });
 
   const timestamp = typeof raw.timestamp === "number" && Number.isFinite(raw.timestamp)
-    ? new Date(raw.timestamp).toISOString()
+    ? (Number.isNaN(new Date(raw.timestamp).valueOf()) ? "" : new Date(raw.timestamp).toISOString())
     : text(raw.timestamp, "");
+  const nextRefresh = Math.max(0, finite(rawGate.next_refresh_ms, finite(raw.next_refresh_ms, finite(rawGate.cadence_ms, 1000))));
 
   return {
     timestamp,
@@ -46,13 +47,14 @@ export function normalizeState(input: unknown): MarketGateState | null {
     gate: {
       mode: rawGate.mode === "uniform" || rawGate.mode === "static" ? rawGate.mode : "neural",
       regime: text(rawGate.regime, EMPTY_STATE.gate.regime),
-      confidence: Math.max(0, Math.min(1, finite(rawGate.confidence))),
       weights: {
         microprice: Math.max(0, finite(rawWeights.microprice)),
         flow: Math.max(0, finite(rawWeights.flow)),
         reversion: Math.max(0, finite(rawWeights.reversion)),
       },
       cadence_ms: Math.max(1, finite(rawGate.cadence_ms, 1000)),
+      next_refresh_ms: nextRefresh,
+      revision: finite(rawGate.revision, -1),
       model_version: text(rawGate.model_version, "—"),
     },
     experts,
@@ -63,9 +65,13 @@ export function normalizeState(input: unknown): MarketGateState | null {
     paper: { inventory: finite(rawPaper.inventory), pnl: finite(rawPaper.pnl) },
     health: {
       status: text(rawHealth.status, "unknown"),
+      ready: rawHealth.ready === true,
       message_age_ms: Math.max(0, finite(rawHealth.message_age_ms)),
       reconnects: Math.max(0, finite(rawHealth.reconnects)),
     },
+    feed_status: text(raw.feed_status, text(rawHealth.status, "unknown")),
+    risk_reason: text(raw.risk_reason, ""),
+    run_id: text(raw.run_id, ""),
   };
 }
 

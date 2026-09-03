@@ -9,6 +9,8 @@ import { API_DEFAULT, websocketUrl } from "../lib/connection";
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || API_DEFAULT).replace(/\/$/, "");
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const modeTitle = (mode: MarketGateState["gate"]["mode"]) => ({ neural: "Neural model", uniform: "Uniform baseline", static: "Static baseline" })[mode];
+const largestWeight = (state: MarketGateState) => Math.max(state.gate.weights.microprice, state.gate.weights.flow, state.gate.weights.reversion);
 
 function ConnectionPill({ status }: { status: ConnectionStatus }) {
   const labels: Record<ConnectionStatus, string> = { connecting: "Connecting", connected: "Connected", disconnected: "Disconnected", error: "Connection error" };
@@ -77,6 +79,17 @@ export default function Home() {
   const [lastError, setLastError] = useState("");
   const [nextRefresh, setNextRefresh] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
+  const runIdRef = useRef<string | null>(null);
+  const revisionRef = useRef<number | null>(null);
+
+  const clearLiveState = () => {
+    setState(EMPTY_STATE);
+    setHasSnapshot(false);
+    setHistory([]);
+    setNextRefresh(0);
+    runIdRef.current = null;
+    revisionRef.current = null;
+  };
 
   useEffect(() => {
     let active = true;
@@ -104,32 +117,41 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setStatus("connecting");
     setLastError("");
+    clearLiveState();
     const socket = new WebSocket(websocketUrl(API_URL));
     wsRef.current = socket;
-    socket.onopen = () => { setStatus("connected"); setLastError(""); };
+    socket.onopen = () => { setStatus("connecting"); setLastError(""); };
     socket.onmessage = (event) => {
       const parsed = typeof event.data === "string" ? parseStateMessage(event.data) : null;
       if (!parsed) { setLastError("Received an invalid state snapshot"); return; }
+      if (runIdRef.current !== null && parsed.run_id !== runIdRef.current) {
+        setHistory([]);
+        revisionRef.current = null;
+      }
+      runIdRef.current = parsed.run_id;
       setState(parsed);
-      setHasSnapshot(true);
-      setNextRefresh(parsed.gate.cadence_ms);
-      setHistory((items) => [...items, parsed].slice(-32));
+      setHasSnapshot(parsed.health.ready);
+      setNextRefresh(parsed.health.ready ? parsed.gate.next_refresh_ms : 0);
+      if (!parsed.health.ready) {
+        setStatus("connecting");
+        return;
+      }
+      setStatus("connected");
+      if (parsed.gate.revision !== revisionRef.current) {
+        revisionRef.current = parsed.gate.revision;
+        setHistory((items) => [...items, parsed].slice(-32));
+      }
     };
-    socket.onerror = () => { setStatus("error"); setLastError(`Could not reach ${API_URL}`); };
+    socket.onerror = () => { clearLiveState(); setStatus("error"); setLastError(`Could not reach ${API_URL}`); };
     socket.onclose = () => {
       wsRef.current = null;
       if (closedByEffect) return;
+      clearLiveState();
       setStatus("disconnected");
       reconnectTimer = setTimeout(() => setReconnectToken((token) => token + 1), 3500);
     };
     return () => { closedByEffect = true; if (reconnectTimer) clearTimeout(reconnectTimer); socket.close(); };
   }, [reconnectToken]);
-
-  useEffect(() => {
-    if (!hasSnapshot || nextRefresh <= 0) return;
-    const timer = setInterval(() => setNextRefresh((remaining) => Math.max(0, remaining - 100)), 100);
-    return () => clearInterval(timer);
-  }, [hasSnapshot, nextRefresh]);
 
   const updateConfig = (key: keyof AppConfig, value: string | number) => setConfig((current) => ({ ...current, [key]: value } as AppConfig));
   const applyConfig = async () => {
@@ -167,11 +189,11 @@ export default function Home() {
 
     <section className="dashboard-section"><SectionTitle index="01" eyebrow="market state" title="What the feed says"><span>Normalized snapshots from the backend. Values remain intentionally blank until a real snapshot arrives.</span></SectionTitle><div className="metric-grid market-metrics"><Metric label="Mid price" value={empty ? "—" : price(state.market.mid)} detail={state.symbol} tone="accent" /><Metric label="Spread" value={empty ? "—" : `${number(state.market.spread_bps, 2)} bps`} detail="top of book" /><Metric label="Imbalance" value={empty ? "—" : signed(state.market.imbalance)} detail="bid pressure" tone={state.market.imbalance >= 0 ? "positive" : "negative"} /><Metric label="Trade flow" value={empty ? "—" : signed(state.market.trade_flow)} detail="signed impulse" tone={state.market.trade_flow >= 0 ? "positive" : "negative"} /></div></section>
 
-    <section className="dashboard-section"><SectionTitle index="02" eyebrow="slow plane" title="The neural gate sets the mix"><span>Refreshes at its configured cadence. It never emits an order.</span></SectionTitle><div className="split-grid"><article className="panel gate-panel"><div className="panel-heading"><span className="panel-kicker violet">GATE REGIME</span><span className="model-version">{empty ? "—" : state.gate.model_version}</span></div><div className="regime">{empty ? "Awaiting feed" : state.gate.regime}</div><div className="confidence"><span>Confidence</span><b>{empty ? "—" : percent(state.gate.confidence)}</b><div className="confidence-track"><span style={{ width: `${empty ? 0 : state.gate.confidence * 100}%` }} /></div></div><div className="gate-footer"><span>{empty ? "Next refresh —" : `Next refresh ${age(nextRefresh)}`}</span><span>{empty ? "—" : `${state.gate.mode} · ${state.gate.cadence_ms} ms`}</span></div></article><article className="panel weights-panel"><div className="panel-heading"><span className="panel-kicker teal">CURRENT WEIGHTS</span><span className="weight-total">Σ 1.00</span></div><WeightRow label="Microprice pressure" value={empty ? 0 : state.gate.weights.microprice} color="#0b8f7c" /><WeightRow label="Trade-flow impulse" value={empty ? 0 : state.gate.weights.flow} color="#7568b3" /><WeightRow label="Short reversion" value={empty ? 0 : state.gate.weights.reversion} color="#b56a3c" /><p className="panel-caption">{empty ? "Waiting for the gate’s first decision." : "Bounded and smoothed before reaching the fast mixer."}</p></article></div></section>
+    <section className="dashboard-section"><SectionTitle index="02" eyebrow="slow plane" title={`${modeTitle(state.gate.mode)} sets the mix`}><span>Refreshes at its configured cadence. It never emits an order.</span></SectionTitle><div className="split-grid"><article className="panel gate-panel"><div className="panel-heading"><span className="panel-kicker violet">WEIGHT POLICY</span><span className="model-version">{empty ? "—" : state.gate.model_version}</span></div><div className="regime">{empty ? "Awaiting feed" : modeTitle(state.gate.mode)}</div><div className="confidence"><span>Largest weight</span><b>{empty ? "—" : percent(largestWeight(state))}</b><div className="confidence-track"><span style={{ width: `${empty ? 0 : largestWeight(state) * 100}%` }} /></div></div><div className="gate-footer"><span>{empty ? "Next refresh —" : `Next refresh ${age(nextRefresh)}`}</span><span>{empty ? "—" : `${state.gate.mode} · ${state.gate.cadence_ms} ms`}</span></div></article><article className="panel weights-panel"><div className="panel-heading"><span className="panel-kicker teal">CURRENT WEIGHTS</span><span className="weight-total">Σ 1.00</span></div><WeightRow label="Microprice pressure" value={empty ? 0 : state.gate.weights.microprice} color="#0b8f7c" /><WeightRow label="Trade-flow impulse" value={empty ? 0 : state.gate.weights.flow} color="#7568b3" /><WeightRow label="Short reversion" value={empty ? 0 : state.gate.weights.reversion} color="#b56a3c" /><p className="panel-caption">{empty ? "Waiting for a ready policy snapshot." : "Bounded and smoothed before reaching the fast mixer."}</p></article></div></section>
 
     <section className="dashboard-section"><SectionTitle index="03" eyebrow="fast plane" title="Three experts, one accountable quote"><span>Every contribution stays legible. Scores are event-speed signals, not trade recommendations.</span></SectionTitle><div className="expert-grid">{state.experts.map((expert, index) => <article className="expert-card" key={expert.id}><div className="expert-index">0{index + 1}</div><h3>{expert.label}</h3><div className="expert-values"><div><span>score</span><b className={expert.score >= 0 ? "up" : "down"}>{empty ? "—" : signed(expert.score)}</b></div><div><span>weight</span><b>{empty ? "—" : percent(expert.weight)}</b></div><div><span>contribution</span><b className={expert.contribution >= 0 ? "up" : "down"}>{empty ? "—" : signed(expert.contribution)}</b></div></div></article>)}</div><div className="panel chart-panel"><div className="panel-heading"><div><span className="panel-kicker teal">WEIGHT / CONTRIBUTION HISTORY</span><h3>How the mix has moved</h3></div><span className="chart-window">last {history.length || 0} snapshots</span></div><HistoryChart history={history} /></div></section>
 
-    <section className="dashboard-section"><SectionTitle index="04" eyebrow="paper state" title="Synthetic quote, no execution"><span>A toy quote and paper ledger make the effect inspectable without connecting to an order endpoint.</span></SectionTitle><div className="lower-grid"><article className="quote-panel"><span className="panel-kicker lime">SYNTHETIC QUOTE</span>{state.quote && !empty ? <><div className="quote-values"><div><span>bid</span><strong>{price(state.quote.bid)}</strong></div><i>/</i><div><span>ask</span><strong>{price(state.quote.ask)}</strong></div></div><div className="quote-sub">mid {price(state.market.mid)} · spread {number(state.market.spread_bps)} bps</div></> : <div className="quote-empty">No quote until a healthy snapshot arrives.</div>}</article><article className="panel paper-panel"><span className="panel-kicker teal">PAPER INVENTORY / P&amp;L</span><div className="paper-values"><Metric label="Inventory" value={empty ? "—" : signed(state.paper.inventory, 4)} detail="BTC" /><Metric label="P&amp;L" value={empty ? "—" : signed(state.paper.pnl)} detail="paper units" tone={state.paper.pnl >= 0 ? "positive" : "negative"} /></div></article><article className="panel health-panel"><span className="panel-kicker teal">FEED / RISK HEALTH</span><div className="health-status"><span className={`health-dot ${empty ? "waiting" : state.health.status === "ok" ? "ok" : "warn"}`} /><strong>{empty ? "Waiting" : state.health.status}</strong></div><dl><div><dt>Message age</dt><dd>{empty ? "—" : age(state.health.message_age_ms)}</dd></div><div><dt>Reconnects</dt><dd>{empty ? "—" : state.health.reconnects}</dd></div><div><dt>Last snapshot</dt><dd>{formatTimestamp(state.timestamp)}</dd></div></dl></article></div></section>
+    <section className="dashboard-section"><SectionTitle index="04" eyebrow="paper state" title="Synthetic quote, no execution"><span>A toy quote and paper ledger make the effect inspectable without connecting to an order endpoint.</span></SectionTitle><div className="lower-grid"><article className="quote-panel"><span className="panel-kicker lime">SYNTHETIC QUOTE</span>{state.quote && !empty ? <><div className="quote-values"><div><span>bid</span><strong>{price(state.quote.bid)}</strong></div><i>/</i><div><span>ask</span><strong>{price(state.quote.ask)}</strong></div></div><div className="quote-sub">mid {price(state.market.mid)} · spread {number(state.market.spread_bps)} bps</div></> : <div className="quote-empty">No quote until a healthy snapshot arrives.</div>}</article><article className="panel paper-panel"><span className="panel-kicker teal">SIMULATION STATE</span><div className="paper-values"><Metric label="Inventory" value={empty ? "—" : signed(state.paper.inventory, 4)} detail="BTC · paper only" /><Metric label="P&amp;L" value={empty ? "—" : signed(state.paper.pnl)} detail="simulation units" tone={state.paper.pnl >= 0 ? "positive" : "negative"} /></div></article><article className="panel health-panel"><span className="panel-kicker teal">FEED / RISK HEALTH</span><div className="health-status"><span className={`health-dot ${empty ? "waiting" : state.feed_status === "ready" ? "ok" : "warn"}`} /><strong>{empty ? "Waiting" : state.feed_status}</strong></div><dl><div><dt>Risk reason</dt><dd>{empty ? "—" : state.risk_reason || "none reported"}</dd></div><div><dt>Message age</dt><dd>{empty ? "—" : age(state.health.message_age_ms)}</dd></div><div><dt>Reconnects</dt><dd>{empty ? "—" : state.health.reconnects}</dd></div><div><dt>Last snapshot</dt><dd>{formatTimestamp(state.timestamp)}</dd></div></dl></article></div></section>
 
     <Settings config={config} onChange={updateConfig} onApply={applyConfig} applying={applying} error={settingsError} />
     <footer className="footer"><div><strong>Market Gate Lab</strong><span> · educational simulation</span></div><p>Not real HFT. Not profitability evidence. No live orders are sent from this interface.</p></footer>

@@ -16,10 +16,12 @@ describe("format helpers", () => {
 });
 
 describe("state normalization", () => {
-  it("clamps confidence and ignores malformed payloads", () => {
+  it("normalizes readiness, revisions, and malformed payloads", () => {
     expect(parseStateMessage("not-json")).toBeNull();
-    const state = normalizeState({ gate: { confidence: 5, weights: { microprice: 0.6 } }, experts: [] });
-    expect(state?.gate.confidence).toBe(1);
+    const state = normalizeState({ health: { ready: true }, gate: { revision: 7, next_refresh_ms: 420, weights: { microprice: 0.6 } }, experts: [] });
+    expect(state?.health.ready).toBe(true);
+    expect(state?.gate.revision).toBe(7);
+    expect(state?.gate.next_refresh_ms).toBe(420);
     expect(state?.experts).toHaveLength(3);
     expect(state?.experts[0].id).toBe("microprice");
   });
