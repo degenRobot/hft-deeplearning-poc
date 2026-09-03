@@ -39,7 +39,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .connection-pill.error .status-dot { background: var(--red); }
 .button { cursor: pointer; border: 1px solid var(--line); border-radius: 9px; padding: 9px 13px; background: var(--paper); font-weight: 750; }
 .button:hover:not(:disabled) { border-color: var(--teal); }
-.button:disabled { cursor: wait; opacity: .55; }
+.button:disabled { cursor: not-allowed; opacity: .55; }
 .button.ghost { padding: 8px 12px; font-size: 12px; }
 .button.primary { border-color: var(--teal); background: var(--teal); color: white; }
 

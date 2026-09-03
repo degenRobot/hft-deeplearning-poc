@@ -190,6 +190,10 @@ export function useMarketGate() {
         await response.json().catch(() => draftConfig),
         draftConfig,
       );
+      // The backend starts a new engine for every applied config. Clear the
+      // previous run before exposing its new labels or cadence in the UI.
+      clearLiveState();
+      setStatus("connecting");
       setAppliedConfig(canonical);
       setDraftConfig(canonical);
     } catch (error: unknown) {
@@ -199,7 +203,7 @@ export function useMarketGate() {
     } finally {
       setApplying(false);
     }
-  }, [draftConfig]);
+  }, [clearLiveState, draftConfig]);
 
   const resetRun = useCallback(async () => {
     setResetting(true);
@@ -211,6 +215,10 @@ export function useMarketGate() {
       if (!response.ok) throw new Error(`Reset returned ${response.status}`);
       const result = parseResetResponse(await response.json());
       if (!result) throw new Error("Reset returned an invalid run receipt");
+      // A snapshot from the prior run can arrive while the reset request is in
+      // flight. Clear once more after the backend acknowledges the new run.
+      clearLiveState();
+      setStatus("connecting");
       setResetResult(result);
       await syncConfig();
     } catch (error: unknown) {
