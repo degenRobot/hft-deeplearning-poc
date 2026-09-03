@@ -1,40 +1,43 @@
-"""Tiny reproducible synthetic training example; writes an optional gate artifact."""
+"""Train the small gate from one recorded public Binance sample."""
 
+from __future__ import annotations
+
+import argparse
+import json
 from pathlib import Path
 
-import numpy as np
-import torch
-from torch import nn
+from market_gate.training import train_recording
+
+
+def parse_args() -> argparse.Namespace:
+    root = Path(__file__).resolve().parents[1]
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--input", type=Path, default=root / "data" / "binance-btcusdt-sample.jsonl"
+    )
+    parser.add_argument("--output", type=Path, default=root / "models" / "gate-binance-demo.npz")
+    parser.add_argument("--receipt", type=Path, default=root / "artifacts" / "training-demo.json")
+    parser.add_argument("--epochs", type=int, default=20)
+    parser.add_argument("--learning-rate", type=float, default=1e-3)
+    parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--lookback-frames", type=int, default=30)
+    parser.add_argument("--horizon-frames", type=int, default=5)
+    return parser.parse_args()
 
 
 def main() -> None:
-    torch.manual_seed(7)
-    features = torch.randn(128, 300)
-    utilities = torch.stack((features[:, -5], features[:, -4] * 0.6, -features[:, -1]), dim=1)
-    model = nn.Sequential(
-        nn.Linear(300, 64), nn.ReLU(), nn.Linear(64, 32), nn.ReLU(), nn.Linear(32, 3)
+    args = parse_args()
+    receipt = train_recording(
+        args.input,
+        args.output,
+        args.receipt,
+        epochs=args.epochs,
+        learning_rate=args.learning_rate,
+        seed=args.seed,
+        lookback_frames=args.lookback_frames,
+        horizon_frames=args.horizon_frames,
     )
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-    for _ in range(40):
-        weights = torch.softmax(model(features), dim=1)
-        loss = -(weights * utilities).sum(dim=1).mean()
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-    destination = Path("models/gate-demo.npz")
-    destination.parent.mkdir(exist_ok=True)
-    first, second, third = (layer for layer in model if isinstance(layer, nn.Linear))
-    np.savez(
-        destination,
-        schema_version=np.array("gate-npz-v1"),
-        w1=first.weight.detach().numpy().T,
-        b1=first.bias.detach().numpy(),
-        w2=second.weight.detach().numpy().T,
-        b2=second.bias.detach().numpy(),
-        w3=third.weight.detach().numpy().T,
-        b3=third.bias.detach().numpy(),
-    )
-    print(f"saved {destination}")
+    print(json.dumps(receipt["training"], indent=2))
 
 
 if __name__ == "__main__":

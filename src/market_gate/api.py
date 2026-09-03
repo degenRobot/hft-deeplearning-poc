@@ -1,6 +1,7 @@
 """Thin read-only FastAPI surface over the single-owner market runtime."""
 
 import asyncio
+import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -14,6 +15,7 @@ from .config import load_config
 from .runtime import MarketRuntime
 
 ALLOWED_MUTATION_ORIGINS = {"http://localhost:3000", "http://127.0.0.1:3000"}
+TRAINING_RECEIPT_PATH = Path(__file__).parents[2] / "artifacts" / "training-demo.json"
 
 
 def require_allowed_mutation_origin(request: Request) -> None:
@@ -21,6 +23,19 @@ def require_allowed_mutation_origin(request: Request) -> None:
     origin = request.headers.get("origin")
     if origin is not None and origin not in ALLOWED_MUTATION_ORIGINS:
         raise HTTPException(status_code=403, detail="mutation origin is not allowed")
+
+
+def load_training_receipt(path: Path = TRAINING_RECEIPT_PATH) -> dict[str, object]:
+    """Load the offline training receipt without triggering a recording or training run."""
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="training receipt is not available yet")
+    try:
+        receipt = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise HTTPException(status_code=503, detail="training receipt is invalid") from error
+    if not isinstance(receipt, dict) or receipt.get("schema_version") != 1:
+        raise HTTPException(status_code=503, detail="training receipt has an unsupported schema")
+    return receipt
 
 
 class ConfigPatch(BaseModel):
@@ -87,6 +102,10 @@ def create_app(config_path: str | Path = "configs/demo.toml") -> FastAPI:
     @app.get("/ledger")
     async def ledger() -> list[dict[str, object]]:
         return runtime.engine.ledger_rows()
+
+    @app.get("/training")
+    async def training() -> dict[str, object]:
+        return load_training_receipt(TRAINING_RECEIPT_PATH)
 
     @app.websocket("/ws/market")
     async def market_socket(websocket: WebSocket) -> None:
