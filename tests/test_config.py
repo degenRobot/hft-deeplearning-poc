@@ -22,3 +22,23 @@ def test_flow_window_has_server_side_bounds() -> None:
     with pytest.raises(ValueError, match="flow_window_trades"):
         config.patch({"flow_window_trades": 3})
     assert config.flow_window_trades == 64
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("gate_interval_ms", 500.5),
+        ("stale_after_ms", True),
+        ("flow_window_trades", 12.5),
+    ],
+)
+def test_integer_fields_reject_fractional_and_boolean_values(field: str, value: object) -> None:
+    config = LabConfig()
+    with pytest.raises(ValueError, match=f"{field} must be an integer"):
+        config.patch({field: value})
+
+
+def test_symbol_type_error_is_reported_as_validation_error() -> None:
+    config = LabConfig()
+    with pytest.raises(ValueError, match="symbol"):
+        config.patch({"symbol": 1234567})

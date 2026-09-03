@@ -6,10 +6,10 @@ export function parseResetResponse(input: unknown): ResetResponse | null {
   const runId = typeof raw.run_id === "string" ? raw.run_id : "";
   const generation =
     typeof raw.feed_generation === "number" &&
-    Number.isFinite(raw.feed_generation)
+    Number.isInteger(raw.feed_generation)
       ? raw.feed_generation
       : -1;
-  return runId && generation >= 0
+  return runId && generation >= 1
     ? { run_id: runId, feed_generation: generation }
     : null;
 }

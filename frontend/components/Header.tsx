@@ -20,7 +20,6 @@ interface HeaderProps {
   source: FeedSource;
   symbol: string;
   cadenceMs: number;
-  ready: boolean;
   apiUrl: string;
   message: string;
   onReconnect: () => void;
@@ -31,16 +30,14 @@ export function Header({
   source,
   symbol,
   cadenceMs,
-  ready,
   apiUrl,
   message,
   onReconnect,
 }: HeaderProps) {
-  const cadenceLabel = ready
-    ? cadenceMs < 1000
+  const cadenceLabel =
+    cadenceMs < 1000
       ? `${cadenceMs} ms gate`
-      : `${(cadenceMs / 1000).toFixed(1)} s gate`
-    : "backend gate";
+      : `${(cadenceMs / 1000).toFixed(1)} s gate`;
   return (
     <>
       <header className="topbar">

@@ -6,7 +6,9 @@ export const metadata: Metadata = {
   description: "A read-only educational simulation of a learned strategy gate.",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <body>{children}</body>

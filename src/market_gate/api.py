@@ -44,7 +44,7 @@ def create_app(config_path: str | Path = "configs/demo.toml") -> FastAPI:
         finally:
             await runtime.stop()
 
-    app = FastAPI(title="Market Gate Lab", version="0.2.0", lifespan=lifespan)
+    app = FastAPI(title="Market Gate Lab", version="0.1.0", lifespan=lifespan)
     app.state.runtime = runtime
     app.add_middleware(
         CORSMiddleware,

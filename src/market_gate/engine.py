@@ -162,14 +162,16 @@ class MarketEngine:
         contribution = (
             self.decision.contribution if self.decision else dict.fromkeys(EXPERT_IDS, 0.0)
         )
-        message_age_ms = max(0, now_ms - self.last_receive_ts_ms)
+        has_message = self.last_receive_ts_ms > 0
+        message_age_ms = max(0, now_ms - self.last_receive_ts_ms) if has_message else 0
         quote = self.decision.quote if self.decision else None
         risk_reason = self.decision.risk_reason if self.decision else "waiting_for_data"
-        if message_age_ms > self.config.stale_after_ms:
+        if has_message and message_age_ms > self.config.stale_after_ms:
             quote = None
             risk_reason = "stale_data"
         ready = (
             self.last_ts_ms > 0
+            and has_message
             and self.feed_status == "running"
             and message_age_ms <= self.config.stale_after_ms
         )

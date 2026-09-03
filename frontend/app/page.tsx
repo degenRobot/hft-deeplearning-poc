@@ -10,7 +10,9 @@ export default function Home() {
   const statusMessage = market.configLoading
     ? "Loading runtime config…"
     : market.status === "connecting"
-      ? "Opening the backend socket; waiting for a ready snapshot…"
+      ? market.state.health.feed_status === "reconnecting"
+        ? "Backend connected; the public market feed is reconnecting…"
+        : "Opening the backend socket; waiting for a ready snapshot…"
       : market.lastError ||
         (market.status === "connected"
           ? market.state.source === "binance"
@@ -33,7 +35,6 @@ export default function Home() {
             ? market.state.gate.cadence_ms
             : market.appliedConfig.gate_interval_ms
         }
-        ready={market.hasSnapshot}
         apiUrl={market.apiUrl}
         message={statusMessage}
         onReconnect={market.reconnect}

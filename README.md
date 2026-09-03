@@ -17,8 +17,8 @@ not claim to reproduce production HFT or prove profitability.
 - Uniform and static baselines, weight smoothing, stale-feed suppression, and an attribution
   ledger.
 - A training script and notebook using synthetic, replay-shaped data.
-- A Next.js dashboard for changing the feed, gate mode, influence, cadence, expert strength,
-  spread, and paper inventory limit.
+- A Next.js dashboard with draft presets for changing the feed, gate mode, influence, cadence,
+  trade-flow window, expert strength, spread, and paper inventory limit.
 
 ```text
 book + trades ──> fast experts ──> weighted mixer ──> risk kernel ──> synthetic quote
@@ -52,9 +52,10 @@ pnpm dev
 
 Open <http://localhost:3000>. Replay mode is the default, so the whole screen works without an
 internet connection. Open **Runtime settings** to switch to Binance public data or compare the
-neural, uniform, and static weighting modes.
+neural, uniform, and static weighting modes. Presets change only the local draft until you choose
+**Apply settings**, so it is easy to compare a proposed setup with the running one.
 
-The backend also exposes `GET /health`, `GET/PATCH /config`, `GET /ledger`, and
+The backend also exposes `GET /health`, `GET/PATCH /config`, `POST /reset`, `GET /ledger`, and
 `WS /ws/market` on <http://localhost:8000>.
 
 ## Train the example gate
@@ -79,9 +80,12 @@ runtime. Useful first comparisons are:
 - `gate_mode = "uniform"` to remove the learned gate.
 - `gate_mode = "static"` for a fixed `50/35/15` mix.
 - `higher_level_influence = 0` to make the higher-level gate inert.
+- `flow_window_trades = 16` to make the flow expert react to a shorter recent window.
 - `source = "binance"` to consume public `bookTicker` and `aggTrade` streams.
 
-Runtime changes are intentionally in-memory. Restarting the backend restores the TOML defaults.
+Runtime changes are intentionally in-memory. **Reset simulation** starts a fresh run with the
+applied runtime config; restarting the backend restores the TOML defaults. Feed-generation and
+event counters in the health panel make both transitions visible.
 
 ## Verify it
 
@@ -89,7 +93,7 @@ Runtime changes are intentionally in-memory. Restarting the backend restores the
 uv run ruff format --check .
 uv run ruff check .
 uv run pytest
-cd frontend && pnpm test && pnpm lint && pnpm build
+cd frontend && pnpm format:check && pnpm test && pnpm lint && pnpm build
 ```
 
 ## Proof boundary

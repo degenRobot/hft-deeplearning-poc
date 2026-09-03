@@ -16,7 +16,9 @@ export const price = (value: number) =>
 
 export const signed = (value: number, digits = 2) => {
   if (!Number.isFinite(value)) return "—";
-  return `${value >= 0 ? "+" : ""}${number(value, digits)}`;
+  const rounded = Number(value.toFixed(digits));
+  const normalized = Object.is(rounded, -0) ? 0 : rounded;
+  return `${normalized >= 0 ? "+" : ""}${number(normalized, digits)}`;
 };
 
 export const percent = (value: number, digits = 0) =>

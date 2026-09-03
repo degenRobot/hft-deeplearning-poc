@@ -34,13 +34,14 @@ export function SettingsPanel({
   onRevert,
   onReset,
 }: SettingsPanelProps) {
+  const busy = applying || resetting;
   return (
-    <details className="settings">
+    <details className="settings" aria-busy={busy}>
       <summary>
         Runtime settings <span>draft, apply, and reset the simulation</span>
       </summary>
       <div className="settings-body">
-        <fieldset className="preset-fieldset">
+        <fieldset className="preset-fieldset" disabled={busy}>
           <legend>Draft presets</legend>
           <p className="form-help">
             Choose a starting point. Presets edit strategy fields only; source,
@@ -60,7 +61,7 @@ export function SettingsPanel({
             ))}
           </div>
         </fieldset>
-        <fieldset className="settings-grid">
+        <fieldset className="settings-grid" disabled={busy}>
           <legend>Parameters</legend>
           <label>
             Feed source
@@ -217,7 +218,7 @@ export function SettingsPanel({
             type="button"
             className="button ghost"
             onClick={onRevert}
-            disabled={!dirty || applying}
+            disabled={!dirty || busy}
           >
             Revert draft
           </button>
@@ -225,7 +226,7 @@ export function SettingsPanel({
             type="button"
             className="button primary"
             onClick={onApply}
-            disabled={!dirty || invalid || applying}
+            disabled={!dirty || invalid || busy}
           >
             {applying ? "Applying…" : "Apply settings"}
           </button>
@@ -234,8 +235,9 @@ export function SettingsPanel({
           <div>
             <strong>Reset simulation run</strong>
             <small>
-              Starts a new backend run and clears this client’s live view. This
-              is not an exchange action.
+              Restarts the applied config and clears this client’s live view.
+              Unsaved draft changes remain local; this is not an exchange
+              action.
             </small>
             {resetResult && (
               <span className="reset-success" role="status">
@@ -253,7 +255,7 @@ export function SettingsPanel({
             type="button"
             className="button reset-button"
             onClick={onReset}
-            disabled={resetting}
+            disabled={busy}
           >
             {resetting ? "Resetting…" : "Reset simulation"}
           </button>

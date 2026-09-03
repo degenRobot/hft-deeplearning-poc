@@ -226,6 +226,8 @@ export function PaperSection({
   state: MarketGateState;
   ready: boolean;
 }) {
+  const hasBackendRun = Boolean(state.health.run_id);
+  const healthStatus = hasBackendRun ? state.health.feed_status : "waiting";
   return (
     <section className="dashboard-section">
       <SectionTitle
@@ -285,42 +287,52 @@ export function PaperSection({
           <span className="panel-kicker teal">FEED / RISK HEALTH</span>
           <div className="health-status">
             <span
-              className={`health-dot ${ready ? (state.health.feed_status === "running" ? "ok" : "warn") : "waiting"}`}
+              className={`health-dot ${healthStatus === "running" ? "ok" : healthStatus === "waiting" ? "waiting" : "warn"}`}
             />
-            <strong>{ready ? state.health.feed_status : "Waiting"}</strong>
+            <strong>{healthStatus}</strong>
           </div>
           <dl>
             <div>
               <dt>Risk reason</dt>
               <dd>
-                {ready ? state.health.risk_reason || "none reported" : "—"}
+                {hasBackendRun
+                  ? state.health.risk_reason || "none reported"
+                  : "—"}
               </dd>
             </div>
             <div>
               <dt>Events processed</dt>
-              <dd>{ready ? number(state.health.events_processed, 0) : "—"}</dd>
+              <dd>
+                {hasBackendRun ? number(state.health.events_processed, 0) : "—"}
+              </dd>
             </div>
             <div>
               <dt>Late events dropped</dt>
               <dd>
-                {ready ? number(state.health.late_events_dropped, 0) : "—"}
+                {hasBackendRun
+                  ? number(state.health.late_events_dropped, 0)
+                  : "—"}
               </dd>
             </div>
             <div>
               <dt>Feed generation</dt>
-              <dd>{ready ? state.health.feed_generation : "—"}</dd>
+              <dd>{hasBackendRun ? state.health.feed_generation : "—"}</dd>
             </div>
             <div>
               <dt>Message age</dt>
-              <dd>{ready ? age(state.health.message_age_ms) : "—"}</dd>
+              <dd>
+                {hasBackendRun && state.timestamp
+                  ? age(state.health.message_age_ms)
+                  : "—"}
+              </dd>
             </div>
             <div>
               <dt>Reconnects</dt>
-              <dd>{ready ? state.health.reconnects : "—"}</dd>
+              <dd>{hasBackendRun ? state.health.reconnects : "—"}</dd>
             </div>
             <div>
               <dt>Last snapshot</dt>
-              <dd>{formatTimestamp(ready ? state.timestamp : "")}</dd>
+              <dd>{formatTimestamp(hasBackendRun ? state.timestamp : "")}</dd>
             </div>
           </dl>
         </article>

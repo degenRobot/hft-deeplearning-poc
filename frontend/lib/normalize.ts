@@ -46,7 +46,9 @@ export function normalizeState(input: unknown): MarketGateState | null {
   });
 
   const timestamp =
-    typeof raw.timestamp === "number" && Number.isFinite(raw.timestamp)
+    typeof raw.timestamp === "number" &&
+    Number.isFinite(raw.timestamp) &&
+    raw.timestamp > 0
       ? Number.isNaN(new Date(raw.timestamp).valueOf())
         ? ""
         : new Date(raw.timestamp).toISOString()

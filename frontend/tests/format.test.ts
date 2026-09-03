@@ -15,6 +15,7 @@ describe("format helpers", () => {
   it("formats signed values and percentages consistently", () => {
     expect(signed(0.125)).toBe("+0.13");
     expect(signed(-0.125)).toBe("-0.13");
+    expect(signed(-0.0001)).toBe("+0.00");
     expect(percent(0.654)).toBe("65%");
   });
 
@@ -64,6 +65,7 @@ describe("state normalization", () => {
   it("accepts backend epoch-millisecond timestamps", () => {
     const state = normalizeState({ timestamp: 1_725_350_400_000 });
     expect(state?.timestamp).toBe("2024-09-03T08:00:00.000Z");
+    expect(normalizeState({ timestamp: 0 })?.timestamp).toBe("");
   });
 });
 
@@ -102,6 +104,12 @@ describe("draft presets and reset receipts", () => {
       validateConfig({ ...DEFAULT_CONFIG, flow_window_trades: 3 }),
     ).toHaveLength(1);
     expect(
+      validateConfig({ ...DEFAULT_CONFIG, flow_window_trades: 12.5 })[0],
+    ).toContain("whole number");
+    expect(
+      validateConfig({ ...DEFAULT_CONFIG, gate_interval_ms: 500.5 })[0],
+    ).toContain("whole number");
+    expect(
       validateConfig({ ...DEFAULT_CONFIG, symbol: "btc-usdt" })[0],
     ).toContain("5–20 uppercase");
   });
@@ -111,5 +119,8 @@ describe("draft presets and reset receipts", () => {
       { run_id: "run-4", feed_generation: 9 },
     );
     expect(parseResetResponse({ run_id: "run-4" })).toBeNull();
+    expect(
+      parseResetResponse({ run_id: "run-4", feed_generation: 0 }),
+    ).toBeNull();
   });
 });

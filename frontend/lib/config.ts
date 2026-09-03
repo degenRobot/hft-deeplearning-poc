@@ -118,6 +118,10 @@ export function validateConfig(config: AppConfig): string[] {
   const errors: string[] = [];
   if (!/^[A-Z0-9]{5,20}$/.test(config.symbol))
     errors.push("Symbol must be 5–20 uppercase letters and numbers.");
+  if (!Number.isInteger(config.gate_interval_ms))
+    errors.push("Gate interval must be a whole number of milliseconds.");
+  if (!Number.isInteger(config.flow_window_trades))
+    errors.push("Flow window must be a whole number of trades.");
   for (const [key, range] of Object.entries(CONFIG_RANGES)) {
     const value = config[key as keyof typeof CONFIG_RANGES] as number;
     if (!Number.isFinite(value) || value < range.min || value > range.max)

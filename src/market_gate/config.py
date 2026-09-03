@@ -19,10 +19,19 @@ class LabConfig:
     flow_window_trades: int = 64
 
     def validate(self) -> None:
+        integer_fields = {
+            "gate_interval_ms": self.gate_interval_ms,
+            "stale_after_ms": self.stale_after_ms,
+            "flow_window_trades": self.flow_window_trades,
+        }
+        for name, value in integer_fields.items():
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"{name} must be an integer")
         if self.source not in {"replay", "binance"}:
             raise ValueError("source must be replay or binance")
         if (
-            not 5 <= len(self.symbol) <= 20
+            not isinstance(self.symbol, str)
+            or not 5 <= len(self.symbol) <= 20
             or not self.symbol.isalnum()
             or not self.symbol.isupper()
         ):

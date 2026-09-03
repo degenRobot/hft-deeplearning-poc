@@ -74,3 +74,14 @@ def test_event_counters_distinguish_accepted_and_late_events() -> None:
     assert health["events_processed"] == 1
     assert health["late_events_dropped"] == 1
     assert health["feed_generation"] == 0
+
+
+def test_snapshot_before_first_message_is_waiting_not_stale() -> None:
+    engine = MarketEngine(LabConfig(gate_mode="uniform"))
+    engine.feed_status = "connecting"
+    snapshot = engine.snapshot(now_ms=1_800_000_000_000)
+    assert snapshot["timestamp"] == 0
+    assert snapshot["quote"] is None
+    assert snapshot["health"]["ready"] is False
+    assert snapshot["health"]["risk_reason"] == "waiting_for_data"
+    assert snapshot["health"]["message_age_ms"] == 0
