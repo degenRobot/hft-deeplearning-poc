@@ -5,6 +5,7 @@ import {
   MarketSection,
   PaperSection,
 } from "./DashboardSections";
+import { TrainingSection } from "./TrainingSection";
 
 export function Dashboard({
   state,
@@ -30,6 +31,7 @@ export function Dashboard({
       />
       <ExpertsSection state={state} history={history} ready={ready} />
       <PaperSection state={state} ready={ready} />
+      <TrainingSection />
     </>
   );
 }
