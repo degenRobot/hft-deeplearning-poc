@@ -108,6 +108,18 @@ export function normalizeState(input: unknown): MarketGateState | null {
       run_id: text(rawHealth.run_id, text(raw.run_id, "")),
       message_age_ms: Math.max(0, finite(rawHealth.message_age_ms)),
       reconnects: Math.max(0, finite(rawHealth.reconnects)),
+      events_processed: Math.max(
+        0,
+        finite(rawHealth.events_processed, finite(raw.events_processed)),
+      ),
+      late_events_dropped: Math.max(
+        0,
+        finite(rawHealth.late_events_dropped, finite(raw.late_events_dropped)),
+      ),
+      feed_generation: Math.max(
+        0,
+        finite(rawHealth.feed_generation, finite(raw.feed_generation)),
+      ),
     },
   };
 }

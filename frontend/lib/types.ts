@@ -41,6 +41,9 @@ export interface MarketGateState {
     run_id: string;
     message_age_ms: number;
     reconnects: number;
+    events_processed: number;
+    late_events_dropped: number;
+    feed_generation: number;
   };
 }
 
@@ -53,6 +56,12 @@ export interface AppConfig {
   expert_strength: number;
   base_spread_bps: number;
   max_inventory: number;
+  flow_window_trades: number;
+}
+
+export interface ResetResponse {
+  run_id: string;
+  feed_generation: number;
 }
 
 export type ConnectionStatus =
@@ -65,11 +74,12 @@ export const DEFAULT_CONFIG: AppConfig = {
   source: "replay",
   symbol: "BTCUSDT",
   gate_mode: "neural",
-  higher_level_influence: 0.65,
+  higher_level_influence: 0.35,
   gate_interval_ms: 1000,
   expert_strength: 1,
-  base_spread_bps: 8,
-  max_inventory: 0.01,
+  base_spread_bps: 2,
+  max_inventory: 0.5,
+  flow_window_trades: 64,
 };
 
 export const EMPTY_STATE: MarketGateState = {
@@ -119,5 +129,8 @@ export const EMPTY_STATE: MarketGateState = {
     run_id: "",
     message_age_ms: 0,
     reconnects: 0,
+    events_processed: 0,
+    late_events_dropped: 0,
+    feed_generation: 0,
   },
 };
