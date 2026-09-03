@@ -10,6 +10,7 @@ import {
 } from "../lib/config";
 import { DEFAULT_CONFIG } from "../lib/types";
 import { parseResetResponse } from "../lib/reset";
+import { isCurrentConfigResponse, shouldSeedDraft } from "../lib/configSync";
 
 describe("format helpers", () => {
   it("formats signed values and percentages consistently", () => {
@@ -45,6 +46,7 @@ describe("state normalization", () => {
       health: {
         ready: false,
         feed_status: "reconnecting",
+        feed_error: "public stream unavailable",
         risk_reason: "stale feed",
         run_id: "run-2",
         events_processed: 12,
@@ -55,11 +57,15 @@ describe("state normalization", () => {
 
     expect(state?.gate.mode).toBe("uniform-fallback");
     expect(state?.health.feed_status).toBe("reconnecting");
+    expect(state?.health.feed_error).toBe("public stream unavailable");
     expect(state?.health.risk_reason).toBe("stale feed");
     expect(state?.health.run_id).toBe("run-2");
     expect(state?.health.events_processed).toBe(12);
     expect(state?.health.late_events_dropped).toBe(3);
     expect(state?.health.feed_generation).toBe(4);
+    expect(
+      normalizeState({ feed_error: "legacy error" })?.health.feed_error,
+    ).toBe("legacy error");
   });
 
   it("accepts backend epoch-millisecond timestamps", () => {
@@ -122,5 +128,33 @@ describe("draft presets and reset receipts", () => {
     expect(
       parseResetResponse({ run_id: "run-4", feed_generation: 0 }),
     ).toBeNull();
+  });
+});
+
+describe("config synchronization guards", () => {
+  it("rejects stale responses after a newer request or mutation", () => {
+    expect(
+      isCurrentConfigResponse(
+        { requestGeneration: 1, mutationGeneration: 0 },
+        { requestGeneration: 2, mutationGeneration: 0 },
+      ),
+    ).toBe(false);
+    expect(
+      isCurrentConfigResponse(
+        { requestGeneration: 2, mutationGeneration: 0 },
+        { requestGeneration: 2, mutationGeneration: 1 },
+      ),
+    ).toBe(false);
+    expect(
+      isCurrentConfigResponse(
+        { requestGeneration: 2, mutationGeneration: 1 },
+        { requestGeneration: 2, mutationGeneration: 1 },
+      ),
+    ).toBe(true);
+  });
+
+  it("seeds draft config only before the user edits it", () => {
+    expect(shouldSeedDraft(false)).toBe(true);
+    expect(shouldSeedDraft(true)).toBe(false);
   });
 });

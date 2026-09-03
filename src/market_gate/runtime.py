@@ -21,11 +21,20 @@ class MarketRuntime:
         self.engine = MarketEngine(config, self.model_path)
         self.feed_task: asyncio.Task[None] | None = None
         self.feed_generation = 0
+        self.feed_error: str | None = None
         self._lock = asyncio.Lock()
 
     @property
     def active_feed_tasks(self) -> int:
         return int(self.feed_task is not None and not self.feed_task.done())
+
+    def snapshot(self) -> dict[str, object]:
+        """Return engine state with runtime-owned feed failure telemetry."""
+        snapshot = self.engine.snapshot()
+        health = snapshot["health"]
+        if isinstance(health, dict):
+            health["feed_error"] = self.feed_error
+        return snapshot
 
     async def start(self) -> None:
         async with self._lock:
@@ -53,33 +62,63 @@ class MarketRuntime:
                 await self.feed_task
             except asyncio.CancelledError:
                 pass
+            except Exception as error:
+                # A task failure is telemetry, not a lifecycle failure.
+                self._record_feed_failure(self.engine, error)
             self.feed_task = None
 
     async def _restart_locked(self) -> None:
         # Await cancellation before replacing the engine: the old task must never write new state.
         await self._stop_locked()
         self.feed_generation += 1
+        self.feed_error = None
         self.engine = MarketEngine(self.config, self.model_path)
         self.engine.run_id = uuid.uuid4().hex[:12]
         self.engine.feed_generation = self.feed_generation
         self.feed_task = asyncio.create_task(self._run_feed(self.engine))
+        self.feed_task.add_done_callback(
+            lambda task, engine=self.engine: self._consume_task_result(task, engine)
+        )
+
+    def _record_feed_failure(self, engine: MarketEngine, error: Exception) -> None:
+        engine.feed_status = "failed"
+        # Keep browser telemetry useful without exposing local paths or payloads.
+        if engine is self.engine:
+            self.feed_error = type(error).__name__
+
+    def _consume_task_result(self, task: asyncio.Task[None], engine: MarketEngine) -> None:
+        """Consume unexpected task exceptions so a broken feed cannot poison later resets."""
+        try:
+            task.result()
+        except asyncio.CancelledError:
+            return
+        except Exception as error:
+            self._record_feed_failure(engine, error)
+        finally:
+            if task is self.feed_task:
+                self.feed_task = None
 
     async def _run_feed(self, engine: MarketEngine) -> None:
-        if self.config.source == "replay":
-            engine.feed_status = "replay_loading"
-            events = list(ReplayFeed(self.fixture_path))
-            for scheduled in replay_schedule(events, int(time.time() * 1000), cycles=None):
-                if scheduled.delay_ms:
-                    await asyncio.sleep(scheduled.delay_ms / 1_000)
-                engine.process(scheduled.event, arrival_ts_ms=int(time.time() * 1000))
-                engine.feed_status = "running"
-        else:
+        try:
+            if self.config.source == "replay":
+                engine.feed_status = "replay_loading"
+                events = list(ReplayFeed(self.fixture_path))
+                for scheduled in replay_schedule(events, int(time.time() * 1000), cycles=None):
+                    if scheduled.delay_ms:
+                        await asyncio.sleep(scheduled.delay_ms / 1_000)
+                    engine.process(scheduled.event, arrival_ts_ms=int(time.time() * 1000))
+                    engine.feed_status = "running"
+            else:
 
-            def update_feed_status(status: str) -> None:
-                engine.feed_status = status
-                engine.reconnects = feed.reconnects
+                def update_feed_status(status: str) -> None:
+                    engine.feed_status = status
+                    engine.reconnects = feed.reconnects
 
-            feed = BinancePublicFeed(self.config.symbol, update_feed_status)
-            async for event in feed.events():
-                engine.reconnects = feed.reconnects
-                engine.process(event)
+                feed = BinancePublicFeed(self.config.symbol, update_feed_status)
+                async for event in feed.events():
+                    engine.reconnects = feed.reconnects
+                    engine.process(event)
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            self._record_feed_failure(engine, error)

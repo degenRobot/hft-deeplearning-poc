@@ -53,6 +53,7 @@ export function SettingsPanel({
                 type="button"
                 key={preset.id}
                 className={`preset ${presetMatches(config, preset) ? "selected" : ""}`}
+                aria-pressed={presetMatches(config, preset)}
                 onClick={() => onPreset(preset.id)}
               >
                 <strong>{preset.label}</strong>

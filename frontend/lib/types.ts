@@ -37,6 +37,7 @@ export interface MarketGateState {
     status: string;
     ready: boolean;
     feed_status: string;
+    feed_error: string;
     risk_reason: string;
     run_id: string;
     message_age_ms: number;
@@ -125,6 +126,7 @@ export const EMPTY_STATE: MarketGateState = {
     status: "waiting",
     ready: false,
     feed_status: "waiting",
+    feed_error: "",
     risk_reason: "Waiting for a ready backend snapshot",
     run_id: "",
     message_age_ms: 0,

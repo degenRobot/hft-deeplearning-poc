@@ -5,13 +5,22 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, WebSocket
+from fastapi import FastAPI, HTTPException, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict
 from starlette.websockets import WebSocketDisconnect
 
 from .config import load_config
 from .runtime import MarketRuntime
+
+ALLOWED_MUTATION_ORIGINS = {"http://localhost:3000", "http://127.0.0.1:3000"}
+
+
+def require_allowed_mutation_origin(request: Request) -> None:
+    """Originless local clients remain usable; browser-originated mutations are allowlisted."""
+    origin = request.headers.get("origin")
+    if origin is not None and origin not in ALLOWED_MUTATION_ORIGINS:
+        raise HTTPException(status_code=403, detail="mutation origin is not allowed")
 
 
 class ConfigPatch(BaseModel):
@@ -48,7 +57,7 @@ def create_app(config_path: str | Path = "configs/demo.toml") -> FastAPI:
     app.state.runtime = runtime
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+        allow_origins=sorted(ALLOWED_MUTATION_ORIGINS),
         allow_credentials=False,
         allow_methods=["GET", "PATCH", "POST"],
         allow_headers=["Content-Type"],
@@ -56,21 +65,23 @@ def create_app(config_path: str | Path = "configs/demo.toml") -> FastAPI:
 
     @app.get("/health")
     async def health() -> dict[str, object]:
-        return runtime.engine.snapshot()
+        return runtime.snapshot()
 
     @app.get("/config")
     async def get_config() -> dict[str, object]:
         return runtime.config.public()
 
     @app.patch("/config")
-    async def patch_config(patch: ConfigPatch) -> dict[str, object]:
+    async def patch_config(patch: ConfigPatch, request: Request) -> dict[str, object]:
+        require_allowed_mutation_origin(request)
         try:
             return await runtime.configure(patch.model_dump(exclude_none=True))
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
 
     @app.post("/reset")
-    async def reset() -> dict[str, object]:
+    async def reset(request: Request) -> dict[str, object]:
+        require_allowed_mutation_origin(request)
         return await runtime.reset()
 
     @app.get("/ledger")
@@ -82,7 +93,7 @@ def create_app(config_path: str | Path = "configs/demo.toml") -> FastAPI:
         await websocket.accept()
         try:
             while True:
-                await websocket.send_json(runtime.engine.snapshot())
+                await websocket.send_json(runtime.snapshot())
                 await asyncio.sleep(0.1)
         except WebSocketDisconnect:
             return

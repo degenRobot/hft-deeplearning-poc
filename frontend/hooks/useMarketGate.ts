@@ -12,6 +12,11 @@ import {
 import { parseResetResponse } from "../lib/reset";
 import { parseStateMessage } from "../lib/normalize";
 import {
+  isCurrentConfigResponse,
+  shouldSeedDraft,
+  type ConfigRequestToken,
+} from "../lib/configSync";
+import {
   DEFAULT_CONFIG,
   EMPTY_STATE,
   type AppConfig,
@@ -44,6 +49,10 @@ export function useMarketGate() {
   const wsRef = useRef<WebSocket | null>(null);
   const runIdRef = useRef<string | null>(null);
   const revisionRef = useRef<number | null>(null);
+  const configRequestGenerationRef = useRef(0);
+  const configMutationGenerationRef = useRef(0);
+  const configAbortRef = useRef<AbortController | null>(null);
+  const draftWasEditedRef = useRef(false);
 
   const clearLiveState = useCallback(() => {
     setState(EMPTY_STATE);
@@ -54,28 +63,55 @@ export function useMarketGate() {
     revisionRef.current = null;
   }, []);
 
-  const syncConfig = useCallback(async (replaceDraft = false) => {
+  const invalidateConfigReads = useCallback(() => {
+    configAbortRef.current?.abort();
+    configAbortRef.current = null;
+    configRequestGenerationRef.current += 1;
+  }, []);
+
+  const syncConfig = useCallback(async () => {
+    configAbortRef.current?.abort();
+    const controller = new AbortController();
+    configAbortRef.current = controller;
+    const token: ConfigRequestToken = {
+      requestGeneration: ++configRequestGenerationRef.current,
+      mutationGeneration: configMutationGenerationRef.current,
+    };
+    const isCurrent = () =>
+      isCurrentConfigResponse(token, {
+        requestGeneration: configRequestGenerationRef.current,
+        mutationGeneration: configMutationGenerationRef.current,
+      });
     try {
-      const response = await fetch(`${API_URL}/config`);
+      const response = await fetch(`${API_URL}/config`, {
+        signal: controller.signal,
+      });
       if (!response.ok)
         throw new Error(`Config request returned ${response.status}`);
       const canonical = normalizeConfig(await response.json());
+      if (!isCurrent()) return;
       setAppliedConfig(canonical);
-      if (replaceDraft) setDraftConfig(canonical);
+      if (shouldSeedDraft(draftWasEditedRef.current)) setDraftConfig(canonical);
       setSettingsError("");
     } catch (error: unknown) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      if (!isCurrent()) return;
       setSettingsError(
         error instanceof Error ? error.message : "Could not load config",
       );
     } finally {
-      setConfigLoading(false);
+      if (isCurrent()) {
+        setConfigLoading(false);
+        configAbortRef.current = null;
+      }
     }
   }, []);
 
   useEffect(() => {
     // Config state is synchronized by the async request, not this effect body.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void syncConfig(true);
+    void syncConfig();
+    return () => configAbortRef.current?.abort();
   }, [syncConfig]);
 
   useEffect(() => {
@@ -100,6 +136,7 @@ export function useMarketGate() {
         setLastError("Received an invalid state snapshot");
         return;
       }
+      setLastError("");
       if (
         runIdRef.current !== null &&
         parsed.health.run_id !== runIdRef.current
@@ -146,6 +183,7 @@ export function useMarketGate() {
 
   const updateDraft = useCallback(
     (key: keyof AppConfig, value: string | number) => {
+      draftWasEditedRef.current = true;
       setDraftConfig((current) => ({ ...current, [key]: value }) as AppConfig);
       setSettingsError("");
       setResetResult(null);
@@ -155,6 +193,7 @@ export function useMarketGate() {
   );
 
   const selectPreset = useCallback((id: PresetId) => {
+    draftWasEditedRef.current = true;
     setDraftConfig((current) => ({ ...current, ...presetById(id).patch }));
     setSettingsError("");
     setResetResult(null);
@@ -162,11 +201,14 @@ export function useMarketGate() {
   }, []);
 
   const revertDraft = useCallback(() => {
+    invalidateConfigReads();
+    draftWasEditedRef.current = false;
     setDraftConfig(appliedConfig);
     setSettingsError("");
     setResetResult(null);
     setResetError("");
-  }, [appliedConfig]);
+    void syncConfig();
+  }, [appliedConfig, invalidateConfigReads, syncConfig]);
 
   const applyConfig = useCallback(async () => {
     const errors = validateConfig(draftConfig);
@@ -178,6 +220,7 @@ export function useMarketGate() {
     setResetResult(null);
     setResetError("");
     setApplying(true);
+    invalidateConfigReads();
     try {
       const response = await fetch(`${API_URL}/config`, {
         method: "PATCH",
@@ -194,8 +237,10 @@ export function useMarketGate() {
       // previous run before exposing its new labels or cadence in the UI.
       clearLiveState();
       setStatus("connecting");
+      configMutationGenerationRef.current += 1;
       setAppliedConfig(canonical);
       setDraftConfig(canonical);
+      draftWasEditedRef.current = false;
     } catch (error: unknown) {
       setSettingsError(
         error instanceof Error ? error.message : "Could not update config",
@@ -203,7 +248,7 @@ export function useMarketGate() {
     } finally {
       setApplying(false);
     }
-  }, [clearLiveState, draftConfig]);
+  }, [clearLiveState, draftConfig, invalidateConfigReads]);
 
   const resetRun = useCallback(async () => {
     setResetting(true);

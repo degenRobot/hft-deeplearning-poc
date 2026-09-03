@@ -106,6 +106,7 @@ export function normalizeState(input: unknown): MarketGateState | null {
         rawHealth.feed_status,
         text(raw.feed_status, text(rawHealth.status, "unknown")),
       ),
+      feed_error: text(rawHealth.feed_error, text(raw.feed_error, "")),
       risk_reason: text(rawHealth.risk_reason, text(raw.risk_reason, "")),
       run_id: text(rawHealth.run_id, text(raw.run_id, "")),
       message_age_ms: Math.max(0, finite(rawHealth.message_age_ms)),

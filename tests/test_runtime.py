@@ -1,6 +1,8 @@
 import asyncio
 from pathlib import Path
 
+from starlette.requests import Request
+
 from market_gate.api import create_app
 from market_gate.config import LabConfig
 from market_gate.runtime import MarketRuntime
@@ -35,9 +37,33 @@ def test_post_reset_returns_current_run_and_generation() -> None:
         app = create_app(ROOT / "configs" / "demo.toml")
         reset_endpoint = next(route.endpoint for route in app.routes if route.path == "/reset")
         async with app.router.lifespan_context(app):
-            result = await reset_endpoint()
+            result = await reset_endpoint(Request({"type": "http", "headers": []}))
             assert result["feed_generation"] == 2
             assert result["run_id"] == app.state.runtime.engine.run_id
             assert app.state.runtime.active_feed_tasks == 1
+
+    asyncio.run(scenario())
+
+
+def test_failed_feed_is_terminal_then_reset_and_stop_recover_cleanly() -> None:
+    async def scenario() -> None:
+        runtime = MarketRuntime(
+            LabConfig(), ROOT / "models" / "gate-demo.npz", ROOT / "fixtures" / "missing.jsonl"
+        )
+        await runtime.start()
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert runtime.engine.feed_status == "failed"
+        assert runtime.feed_error == "FileNotFoundError"
+        assert runtime.snapshot()["health"]["feed_error"] == "FileNotFoundError"
+        assert runtime.active_feed_tasks == 0
+        assert runtime.feed_task is None
+
+        runtime.fixture_path = ROOT / "fixtures" / "replay.jsonl"
+        reset = await runtime.reset()
+        assert reset["feed_generation"] == 2
+        assert runtime.active_feed_tasks == 1
+        await runtime.stop()
+        assert runtime.active_feed_tasks == 0
 
     asyncio.run(scenario())

@@ -300,6 +300,12 @@ export function PaperSection({
                   : "—"}
               </dd>
             </div>
+            {state.health.feed_error && (
+              <div>
+                <dt>Feed error</dt>
+                <dd>{hasBackendRun ? state.health.feed_error : "—"}</dd>
+              </div>
+            )}
             <div>
               <dt>Events processed</dt>
               <dd>
