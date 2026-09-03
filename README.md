@@ -12,7 +12,8 @@ not claim to reproduce production HFT or prove profitability.
 
 - A FastAPI backend with deterministic replay and a public Binance market-data adapter.
 - Three legible expert signals: microprice pressure, trade-flow impulse, and short reversion.
-- A 21,443-parameter PyTorch gate with a causal `30 x 10` input window.
+- A 21,443-parameter gate with a causal `30 x 10` input window: PyTorch for the
+  training example, NumPy-only inference in the live demo.
 - Uniform and static baselines, weight smoothing, stale-feed suppression, and an attribution
   ledger.
 - A training script and notebook using synthetic, replay-shaped data.
@@ -63,10 +64,12 @@ uv sync --extra training
 uv run python scripts/train_gate.py
 ```
 
-This writes `artifacts/gate-demo.pt`, which is ignored by Git. The companion notebook is
-`notebooks/gate_training.ipynb`. Both use deterministic synthetic data so the example stays
-small and reproducible. A real experiment would need chronological train/validation/test
-windows, train-only normalization, cost assumptions, and an untouched promotion holdout.
+This deterministically replaces `models/gate-demo.npz`, the small versioned artifact loaded by
+the runtime. The companion notebook is `notebooks/gate_training.ipynb`; it trains the same shape,
+exports the same Torch-free format, and verifies a NumPy inference. Both examples use synthetic
+data so the mechanism stays small and reproducible. A real experiment would need chronological
+train/validation/test windows, train-only normalization, cost assumptions, and an untouched
+promotion holdout.
 
 ## Change the inputs
 
@@ -96,6 +99,9 @@ real P&L. Python and internet WebSockets are useful here because the mechanism i
 not because they meet colocated trading latency. The main design idea is the authority boundary:
 the learned model proposes bounded weights while deterministic code enforces market-data and risk
 rules.
+
+Binance is the only live venue adapter in this slice. RISEx remains the next adapter because its
+snapshot-before-ack and checksum rules deserve their own tests instead of a decorative selector.
 
 The structure was informed by the slow-model / deterministic-controller separation explored in
 the Apache-2.0-licensed [VRM NN Lab](https://github.com/degenRobot/vrm-nn-lab). This repository's

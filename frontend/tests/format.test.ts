@@ -18,12 +18,33 @@ describe("format helpers", () => {
 describe("state normalization", () => {
   it("normalizes readiness, revisions, and malformed payloads", () => {
     expect(parseStateMessage("not-json")).toBeNull();
-    const state = normalizeState({ health: { ready: true }, gate: { revision: 7, next_refresh_ms: 420, weights: { microprice: 0.6 } }, experts: [] });
+    const state = normalizeState({
+      health: { ready: true },
+      gate: { revision: 7, next_refresh_ms: 420, weights: { microprice: 0.6 } },
+      experts: [],
+    });
     expect(state?.health.ready).toBe(true);
     expect(state?.gate.revision).toBe(7);
     expect(state?.gate.next_refresh_ms).toBe(420);
     expect(state?.experts).toHaveLength(3);
     expect(state?.experts[0].id).toBe("microprice");
+  });
+
+  it("reads feed truth and fallback mode from the backend health contract", () => {
+    const state = normalizeState({
+      gate: { mode: "uniform-fallback" },
+      health: {
+        ready: false,
+        feed_status: "reconnecting",
+        risk_reason: "stale feed",
+        run_id: "run-2",
+      },
+    });
+
+    expect(state?.gate.mode).toBe("uniform-fallback");
+    expect(state?.health.feed_status).toBe("reconnecting");
+    expect(state?.health.risk_reason).toBe("stale feed");
+    expect(state?.health.run_id).toBe("run-2");
   });
 
   it("accepts backend epoch-millisecond timestamps", () => {
@@ -35,6 +56,8 @@ describe("state normalization", () => {
 describe("backend connection contract", () => {
   it("targets the market stream endpoint", () => {
     expect(MARKET_WS_PATH).toBe("/ws/market");
-    expect(websocketUrl("http://localhost:8000/")).toBe("ws://localhost:8000/ws/market");
+    expect(websocketUrl("http://localhost:8000/")).toBe(
+      "ws://localhost:8000/ws/market",
+    );
   });
 });

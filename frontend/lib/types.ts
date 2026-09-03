@@ -1,4 +1,5 @@
-export type GateMode = "neural" | "uniform" | "static";
+export type GateMode = "neural" | "uniform" | "static" | "uniform-fallback";
+export type ConfigGateMode = Exclude<GateMode, "uniform-fallback">;
 export type FeedSource = "replay" | "binance";
 
 export interface Expert {
@@ -32,16 +33,21 @@ export interface MarketGateState {
   experts: Expert[];
   quote: { bid: number; ask: number } | null;
   paper: { inventory: number; pnl: number };
-  health: { status: string; ready: boolean; message_age_ms: number; reconnects: number };
-  feed_status: string;
-  risk_reason: string;
-  run_id: string;
+  health: {
+    status: string;
+    ready: boolean;
+    feed_status: string;
+    risk_reason: string;
+    run_id: string;
+    message_age_ms: number;
+    reconnects: number;
+  };
 }
 
 export interface AppConfig {
   source: FeedSource;
   symbol: string;
-  gate_mode: GateMode;
+  gate_mode: ConfigGateMode;
   higher_level_influence: number;
   gate_interval_ms: number;
   expert_strength: number;
@@ -49,7 +55,11 @@ export interface AppConfig {
   max_inventory: number;
 }
 
-export type ConnectionStatus = "connecting" | "connected" | "disconnected" | "error";
+export type ConnectionStatus =
+  | "connecting"
+  | "connected"
+  | "disconnected"
+  | "error";
 
 export const DEFAULT_CONFIG: AppConfig = {
   source: "replay",
@@ -77,14 +87,37 @@ export const EMPTY_STATE: MarketGateState = {
     model_version: "—",
   },
   experts: [
-    { id: "microprice", label: "Microprice pressure", score: 0, weight: 0, contribution: 0 },
-    { id: "flow", label: "Trade-flow impulse", score: 0, weight: 0, contribution: 0 },
-    { id: "reversion", label: "Short reversion", score: 0, weight: 0, contribution: 0 },
+    {
+      id: "microprice",
+      label: "Microprice pressure",
+      score: 0,
+      weight: 0,
+      contribution: 0,
+    },
+    {
+      id: "flow",
+      label: "Trade-flow impulse",
+      score: 0,
+      weight: 0,
+      contribution: 0,
+    },
+    {
+      id: "reversion",
+      label: "Short reversion",
+      score: 0,
+      weight: 0,
+      contribution: 0,
+    },
   ],
   quote: null,
   paper: { inventory: 0, pnl: 0 },
-  health: { status: "waiting", ready: false, message_age_ms: 0, reconnects: 0 },
-  feed_status: "waiting",
-  risk_reason: "Waiting for a ready backend snapshot",
-  run_id: "",
+  health: {
+    status: "waiting",
+    ready: false,
+    feed_status: "waiting",
+    risk_reason: "Waiting for a ready backend snapshot",
+    run_id: "",
+    message_age_ms: 0,
+    reconnects: 0,
+  },
 };

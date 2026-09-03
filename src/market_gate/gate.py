@@ -36,7 +36,25 @@ class NumpyMLPGate:
             self.w3 = artifact["w3"]
             self.b3 = artifact["b3"]
             schema = artifact["schema_version"]
-        if schema.item() != "gate-npz-v1" or self.w1.shape != (300, 64) or self.w3.shape != (32, 3):
+        expected_shapes = {
+            "w1": (300, 64),
+            "b1": (64,),
+            "w2": (64, 32),
+            "b2": (32,),
+            "w3": (32, 3),
+            "b3": (3,),
+        }
+        arrays = {
+            "w1": self.w1,
+            "b1": self.b1,
+            "w2": self.w2,
+            "b2": self.b2,
+            "w3": self.w3,
+            "b3": self.b3,
+        }
+        if schema.item() != "gate-npz-v1" or any(
+            arrays[name].shape != shape for name, shape in expected_shapes.items()
+        ):
             raise ValueError("unsupported gate artifact schema or dimensions")
         self.model_version = self.path.stem
 

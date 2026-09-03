@@ -9,7 +9,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from starlette.websockets import WebSocketDisconnect
 
 from .config import load_config
@@ -19,6 +19,8 @@ from .feeds.replay import ReplayFeed, replay_schedule
 
 
 class ConfigPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     source: str | None = None
     symbol: str | None = None
     gate_mode: str | None = None
@@ -110,11 +112,11 @@ def create_app(config_path: str | Path = "configs/demo.toml") -> FastAPI:
     )
 
     @app.get("/health")
-    def health() -> dict[str, object]:
+    async def health() -> dict[str, object]:
         return engine.snapshot()
 
     @app.get("/config")
-    def get_config() -> dict[str, object]:
+    async def get_config() -> dict[str, object]:
         return config.public()
 
     @app.patch("/config")
@@ -132,7 +134,7 @@ def create_app(config_path: str | Path = "configs/demo.toml") -> FastAPI:
         return config.public()
 
     @app.get("/ledger")
-    def ledger() -> list[dict[str, object]]:
+    async def ledger() -> list[dict[str, object]]:
         return engine.ledger_rows()
 
     @app.websocket("/ws/market")

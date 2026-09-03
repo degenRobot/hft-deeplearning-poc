@@ -14,6 +14,7 @@ def test_gate_revision_increments_and_refresh_value_is_remaining_duration() -> N
     assert engine.snapshot(now_ms=0)["gate"]["revision"] == 0
     engine.process(book(1_000))
     assert engine.snapshot(now_ms=1_000)["gate"].get("revision") == 1
+    assert engine.snapshot(now_ms=1_000)["gate"]["model_version"] == "not used"
     assert engine.snapshot(now_ms=1_000)["gate"]["next_refresh_ms"] == 1_000
     engine.process(book(1_500))
     assert engine.snapshot(now_ms=1_500)["gate"]["revision"] == 1
@@ -32,3 +33,11 @@ def test_out_of_order_event_cannot_mutate_engine_state() -> None:
     assert after["timestamp"] == before["timestamp"]
     assert after["market"] == before["market"]
     assert after["paper"] == before["paper"]
+
+
+def test_missing_neural_artifact_is_reported_as_uniform_fallback() -> None:
+    engine = MarketEngine(LabConfig(gate_mode="neural"), "models/does-not-exist.npz")
+    engine.process(book(1_000))
+    gate = engine.snapshot(now_ms=1_000)["gate"]
+    assert gate["mode"] == "uniform-fallback"
+    assert gate["model_version"] == "unavailable"

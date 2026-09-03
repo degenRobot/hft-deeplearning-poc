@@ -20,6 +20,12 @@ class LabConfig:
     def validate(self) -> None:
         if self.source not in {"replay", "binance"}:
             raise ValueError("source must be replay or binance")
+        if (
+            not 5 <= len(self.symbol) <= 20
+            or not self.symbol.isalnum()
+            or not self.symbol.isupper()
+        ):
+            raise ValueError("symbol must be 5-20 uppercase letters or digits")
         if self.gate_mode not in {"neural", "uniform", "static"}:
             raise ValueError("gate_mode must be neural, uniform, or static")
         if not 0.0 <= self.higher_level_influence <= 1.0:

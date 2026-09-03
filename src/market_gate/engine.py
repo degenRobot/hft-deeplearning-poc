@@ -166,6 +166,12 @@ class MarketEngine:
             and self.feed_status == "running"
             and message_age_ms <= self.config.stale_after_ms
         )
+        if self.effective_gate_mode == "neural" and self.gate is not None:
+            model_version = self.gate.model_version
+        elif self.effective_gate_mode == "uniform-fallback":
+            model_version = "unavailable"
+        else:
+            model_version = "not used"
         return {
             "timestamp": self.last_ts_ms,
             "source": self.venue,
@@ -183,7 +189,7 @@ class MarketEngine:
                 "confidence": max(self.weights.values()),
                 "weights": self.weights.copy(),
                 "cadence_ms": self.config.gate_interval_ms,
-                "model_version": self.gate.model_version if self.gate else "unavailable",
+                "model_version": model_version,
                 "revision": self.gate_revision,
                 "next_refresh_ms": max(
                     0, self.last_gate_ts_ms + self.config.gate_interval_ms - now_ms
