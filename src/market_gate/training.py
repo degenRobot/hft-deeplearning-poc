@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 
 from .contracts import BookEvent, TradeEvent
-from .experts import EXPERT_IDS
+from .experts import EXPERT_IDS, microprice_pressure, short_reversion, trade_flow_impulse
 from .features import FeatureBuilder
 
 FEATURE_NAMES = [
@@ -176,9 +176,7 @@ def build_frames(events: list[BookEvent | TradeEvent]) -> tuple[np.ndarray, np.n
     for event in events:
         if last_book is not None:
             mid, spread_bps, imbalance, microprice = book_metrics(last_book)
-            frame = builder.close_before(
-                event.event_ts_ms, mid, spread_bps, imbalance, microprice
-            )
+            frame = builder.close_before(event.event_ts_ms, mid, spread_bps, imbalance, microprice)
             if frame is not None:
                 values.append(frame.values)
                 mids.append(mid)
@@ -208,23 +206,19 @@ def build_examples(
         end = start + lookback_frames
         target = end + horizon_frames - 1
         future_return_bps = float((mids[target] / mids[end - 1] - 1.0) * 10_000)
-        # These match the runtime's three experts in EXPERT_IDS order. Each
-        # label asks whether the end-of-window directional signal agreed with
-        # the later move, rather than claiming it is realized trading profit.
-        microprice_signal = float(frames[end - 1, 5])
-        flow_signal = float(frames[end - 1, 6])
-        reversion_signal = -float(frames[end - 1, 9])
-        utilities = np.asarray(
+        last = frames[end - 1]
+        # Approximate the three runtime experts from one closed feature frame,
+        # then reward a proxy score only when it agrees with the later move.
+        proxy_scores = np.asarray(
             [
-                microprice_signal * future_return_bps,
-                flow_signal * future_return_bps,
-                reversion_signal * future_return_bps,
+                microprice_pressure(1.0, float(last[4]), 1.0 + float(last[5])),
+                trade_flow_impulse(float(last[6]), 1.0, int(last[7])),
+                short_reversion(1.0 + float(last[9]), 1.0),
             ],
             dtype=np.float32,
         )
-        examples.append(
-            TrainingExample(start, target, frames[start:end].reshape(-1), utilities)
-        )
+        utilities = proxy_scores * future_return_bps
+        examples.append(TrainingExample(start, target, frames[start:end].reshape(-1), utilities))
     if not examples:
         raise ValueError(
             "insufficient frames: need more than lookback_frames + horizon_frames "
@@ -290,9 +284,9 @@ def _utc_timestamp(timestamp_ms: int) -> str:
 
 def _relative_path(path: Path, root: Path) -> str:
     try:
-        return str(path.relative_to(root))
+        return str(path.resolve().relative_to(root.resolve()))
     except ValueError:
-        return str(path)
+        return f"<external>/{path.name}"
 
 
 def train_recording(
@@ -378,7 +372,7 @@ def train_recording(
             "lookback_frames": lookback_frames,
             "horizon_frames": horizon_frames,
             "frames": len(frames),
-            "examples": len(examples),
+            "examples": len(train_examples) + len(validation_examples),
             "train_examples": len(train_examples),
             "validation_examples": len(validation_examples),
         },
@@ -394,10 +388,13 @@ def train_recording(
         },
         "limitations": [
             "A short public sample is a teaching artifact, not a trading signal or backtest.",
-            "The three labels score microprice, flow, and reversion direction, not realized profit "
-            "and loss.",
+            "The labels use one-second proxies for the live microprice, flow, and reversion "
+            "experts; flow and reversion do not reproduce the live engine's rolling state.",
+            "The exported model is an offline example and is not the gate used by the live demo.",
             "Chronological splitting keeps validation later than training; it does not establish "
             "robustness.",
+            f"{len(examples) - len(train_examples) - len(validation_examples)} overlapping "
+            "boundary examples were excluded from both sets.",
         ],
     }
     receipt_path.parent.mkdir(parents=True, exist_ok=True)

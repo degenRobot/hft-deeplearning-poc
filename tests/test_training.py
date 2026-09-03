@@ -65,6 +65,20 @@ def test_windows_and_chronological_split_are_causal_without_overlap() -> None:
     assert examples[0].utilities.shape == (3,)
 
 
+def test_utility_labels_follow_runtime_expert_order() -> None:
+    frames = np.zeros((3, len(FEATURE_NAMES)), dtype=np.float32)
+    frames[0, 4:7] = [0.5, 0.0001, 0.75]
+    frames[0, 7] = 4
+    frames[0, 9] = 0.0002
+    mids = np.asarray([100.0, 100.1, 100.2], dtype=np.float32)
+
+    example = build_examples(frames, mids, lookback_frames=1, horizon_frames=1)[0]
+
+    assert example.utilities[0] > 0  # microprice pressure agreed with the later rise
+    assert example.utilities[1] > 0  # buy flow agreed with the later rise
+    assert example.utilities[2] < 0  # reversion pointed against the later rise
+
+
 def test_load_recording_rejects_invalid_public_event(tmp_path: Path) -> None:
     path = tmp_path / "invalid.jsonl"
     path.write_text('{"kind":"trade","aggressor":"sideways"}\n')
@@ -99,3 +113,4 @@ def test_training_writes_the_complete_receipt_contract(tmp_path: Path) -> None:
     assert receipt["dataset"]["validation_examples"] > 0
     assert (tmp_path / "gate-binance-demo.npz").is_file()
     assert (tmp_path / "training-demo.json").is_file()
+    assert str(tmp_path) not in json.dumps(receipt)

@@ -119,10 +119,8 @@ function TrainingCommands() {
         </p>
       </div>
       <code>
-        <span>python scripts/record_binance.py --seconds 60</span>
-        <span>
-          python scripts/train_gate.py --input data/binance-btcusdt-sample.jsonl
-        </span>
+        <span>uv run --extra training python scripts/record_binance.py</span>
+        <span>uv run --extra training python scripts/train_gate.py</span>
       </code>
     </div>
   );

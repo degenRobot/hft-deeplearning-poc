@@ -1,4 +1,4 @@
-.PHONY: setup test backend frontend train
+.PHONY: setup test backend frontend record train
 
 setup:
 	uv sync --extra dev
@@ -16,6 +16,8 @@ backend:
 frontend:
 	cd frontend && pnpm dev
 
+record:
+	uv run --extra training python scripts/record_binance.py
+
 train:
-	uv sync --extra training
-	uv run python scripts/train_gate.py
+	uv run --extra training python scripts/train_gate.py
