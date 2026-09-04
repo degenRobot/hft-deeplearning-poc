@@ -53,6 +53,12 @@ def test_plan_hash_binds_sample_model_and_config(tmp_path: Path) -> None:
     assert first.config_sha256 != different_seed.config_sha256
     assert first.config_sha256 != different_input.config_sha256
     assert first.public_dict()["input"]["path"] == "sample.jsonl"  # type: ignore[index]
+    assert first.public_dict()["remote"] == {
+        "cpu": 2,
+        "memory_mib": 2048,
+        "timeout_seconds": 300,
+        "retries": 0,
+    }
 
 
 def test_external_paths_are_redacted_in_receipt(tmp_path: Path) -> None:
@@ -111,6 +117,10 @@ def test_run_gate_requires_both_inputs_to_match_head(
     input_path = _write(root / "data" / "sample.jsonl", b"public bytes")
     model_path = _write(root / "models" / "expected.npz", b"expected model")
     trainer_path = _write(root / "trainer.py", b"head source")
+    source_dir = root / "src"
+    source_dir.mkdir()
+    _write(source_dir / "tracked.py", b"head source")
+    _write(root / ".gitignore", b"src/private.env\n")
     subprocess.run(["git", "init", "-q", str(root)], check=True)
     subprocess.run(
         ["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True
@@ -152,4 +162,12 @@ def test_run_gate_requires_both_inputs_to_match_head(
     _write(trainer_path, b"head source")
     _write(model_path, b"changed model")
     with pytest.raises(ValueError, match="exactly match HEAD"):
+        module.require_clean_head_inputs(plan)
+    _write(model_path, b"expected model")
+    _write(source_dir / "private.env", b"must not be uploaded")
+    with pytest.raises(ValueError, match="only files tracked in HEAD"):
+        module.require_clean_head_inputs(plan)
+    (source_dir / "private.env").unlink()
+    _write(source_dir / "scratch.py", b"must not be uploaded")
+    with pytest.raises(ValueError, match="only files tracked in HEAD"):
         module.require_clean_head_inputs(plan)

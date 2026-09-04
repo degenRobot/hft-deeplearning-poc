@@ -59,6 +59,32 @@ def require_clean_head_inputs(plan: ParityPlan) -> None:
     )
     if repository_differs_from_head.returncode != 0:
         raise ValueError("--run requires every tracked repository file to exactly match HEAD")
+
+    # Modal mounts the whole source directory, including ignored files. Refuse any
+    # file that is not part of HEAD so local scratch files or secrets cannot ride
+    # along with an otherwise clean commit.
+    for ignored_args in ((), ("--ignored",)):
+        untracked = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(plan.root),
+                "ls-files",
+                "--others",
+                *ignored_args,
+                "--exclude-standard",
+                "--",
+                "src",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if untracked.returncode != 0:
+            raise RuntimeError("could not inspect the source directory before --run")
+        if untracked.stdout.strip():
+            raise ValueError("--run requires src to contain only files tracked in HEAD")
+
     for label, path in (("input", plan.input_path), ("expected model", plan.expected_model_path)):
         try:
             relative = path.relative_to(plan.root)
