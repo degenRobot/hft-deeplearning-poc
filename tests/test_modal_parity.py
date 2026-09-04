@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-# ruff: noqa: E501
 import builtins
 import importlib.util
 import json
@@ -10,7 +9,6 @@ from types import SimpleNamespace
 
 import pytest
 
-# fmt: off
 
 def script():
     path = Path(__file__).parents[1] / "scripts" / "train_on_modal.py"
@@ -30,13 +28,28 @@ def repo(tmp_path: Path) -> tuple[Path, Path, Path]:
     sample.write_bytes(b"public sample")
     model.write_bytes(b"expected model")
     (root / ".gitignore").write_text("src/private.env\n")
-    for command in (("init", "-q"), ("config", "user.email", "test@example.invalid"), ("config", "user.name", "Test"), ("add", "."), ("commit", "-qm", "fixture")):
+    for command in (
+        ("init", "-q"),
+        ("config", "user.email", "test@example.invalid"),
+        ("config", "user.name", "Test"),
+        ("add", "."),
+        ("commit", "-qm", "fixture"),
+    ):
         subprocess.run(["git", "-C", str(root), *command], check=True)
     return root, sample, model
 
 
 def remote(request, **changes):
-    value = {"input_sha256": request["input_sha256"], "model_sha256": request["expected_model_sha256"], "duration_seconds": 1.25, "loss_metrics": {"first_train_loss": -0.3, "last_train_loss": -0.5, "validation_loss": -0.2}}
+    value = {
+        "input_sha256": request["input_sha256"],
+        "model_sha256": request["expected_model_sha256"],
+        "duration_seconds": 1.25,
+        "loss_metrics": {
+            "first_train_loss": -0.3,
+            "last_train_loss": -0.5,
+            "validation_loss": -0.2,
+        },
+    }
     value.update(changes)
     return value
 
@@ -56,7 +69,9 @@ def test_plan_is_redacted_and_binds_hashes_config_and_caps(tmp_path: Path) -> No
     assert display["remote"] == {"cpu": 2, "memory_mib": 2048, "timeout_seconds": 300, "retries": 0}
 
 
-def test_dry_run_never_calls_remote_or_writes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_dry_run_never_calls_remote_or_writes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     root, sample, model = repo(tmp_path)
     module = script()
     importer = builtins.__import__
@@ -76,12 +91,20 @@ def test_preflight_rejects_dirty_inputs_and_source_uploads(tmp_path: Path) -> No
     root, sample, model = repo(tmp_path)
     module, request = script(), script().plan(root, sample, model, 20, 7)
     module.preflight(request)
-    cases = [(root / "src/gate.py", "dirty", "every tracked"), (model, "changed", "every tracked"), (root / "src/private.env", "secret", "only files tracked"), (root / "src/scratch.py", "scratch", "only files tracked")]
+    cases = [
+        (root / "src/gate.py", "dirty", "every tracked"),
+        (model, "changed", "every tracked"),
+        (root / "src/private.env", "secret", "only files tracked"),
+        (root / "src/scratch.py", "scratch", "only files tracked"),
+    ]
     for path, contents, message in cases:
         path.write_text(contents)
         with pytest.raises(ValueError, match=message):
             module.preflight(request)
-        subprocess.run(["git", "-C", str(root), "checkout", "--", "src/gate.py", "models/gate.npz"], check=False)
+        subprocess.run(
+            ["git", "-C", str(root), "checkout", "--", "src/gate.py", "models/gate.npz"],
+            check=False,
+        )
         if path not in {root / "src/gate.py", model}:
             path.unlink()
     external = tmp_path / "external.jsonl"
@@ -100,14 +123,25 @@ def test_preflight_requires_a_full_commit(tmp_path: Path, monkeypatch: pytest.Mo
     original = module.git
 
     def abbreviated(root: Path, *command: str) -> SimpleNamespace:
-        return SimpleNamespace(returncode=0, stdout="short" if command == ("rev-parse", "HEAD") else original(root, *command).stdout)
+        return SimpleNamespace(
+            returncode=0,
+            stdout="short" if command == ("rev-parse", "HEAD") else original(root, *command).stdout,
+        )
 
     monkeypatch.setattr(module, "git", abbreviated)
     with pytest.raises(RuntimeError, match="full commit"):
         module.preflight(request)
 
 
-@pytest.mark.parametrize("change", [{"input_sha256": "f" * 64}, {"model_sha256": "nope"}, {"duration_seconds": float("inf")}, {"loss_metrics": {}}])
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"input_sha256": "f" * 64},
+        {"model_sha256": "nope"},
+        {"duration_seconds": float("inf")},
+        {"loss_metrics": {}},
+    ],
+)
 def test_receipt_rejects_invalid_remote_values(tmp_path: Path, change: dict[str, object]) -> None:
     root, sample, model = repo(tmp_path)
     module, request = script(), script().plan(root, sample, model, 20, 7)
@@ -115,13 +149,36 @@ def test_receipt_rejects_invalid_remote_values(tmp_path: Path, change: dict[str,
         module.receipt(request, "a" * 40, remote(request, **change))
 
 
-def test_mismatch_writes_atomic_separate_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_mismatch_writes_atomic_separate_receipt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     root, sample, model = repo(tmp_path)
     module = script()
-    monkeypatch.setattr(module, "run_remote", lambda request: remote(request, model_sha256="0" * 64))
+    monkeypatch.setattr(
+        module, "run_remote", lambda request: remote(request, model_sha256="0" * 64)
+    )
     output = root / "artifacts/receipt.json"
-    assert module.main(["--run", "--input", str(sample), "--expected-model", str(model), "--output-receipt", str(output)], root=root) == 1
-    assert (saved := json.loads(output.read_text()))["parity"] is False and saved["schema_version"] == 1 and saved["limitations"] and saved["generated_at"].endswith("Z")
+    assert (
+        module.main(
+            [
+                "--run",
+                "--input",
+                str(sample),
+                "--expected-model",
+                str(model),
+                "--output-receipt",
+                str(output),
+            ],
+            root=root,
+        )
+        == 1
+    )
+    assert (
+        (saved := json.loads(output.read_text()))["parity"] is False
+        and saved["schema_version"] == 1
+        and saved["limitations"]
+        and saved["generated_at"].endswith("Z")
+    )
     request = module.plan(root, sample, model, 20, 7)
     with pytest.raises(ValueError, match="separate"):
         module.write_receipt(model, request, {})
