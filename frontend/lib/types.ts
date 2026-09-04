@@ -41,6 +41,7 @@ export interface MarketGateState {
     risk_reason: string;
     run_id: string;
     message_age_ms: number;
+    book_age_ms: number;
     reconnects: number;
     events_processed: number;
     late_events_dropped: number;
@@ -130,6 +131,7 @@ export const EMPTY_STATE: MarketGateState = {
     risk_reason: "Waiting for a ready backend snapshot",
     run_id: "",
     message_age_ms: 0,
+    book_age_ms: 0,
     reconnects: 0,
     events_processed: 0,
     late_events_dropped: 0,
