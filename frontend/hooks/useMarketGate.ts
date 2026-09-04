@@ -21,7 +21,6 @@ import {
   EMPTY_STATE,
   type AppConfig,
   type ConnectionStatus,
-  type MarketGateState,
   type ResetResponse,
 } from "../lib/types";
 
@@ -48,7 +47,6 @@ const request = async (
 
 export function useMarketGate() {
   const [state, setState] = useState(EMPTY_STATE);
-  const [history, setHistory] = useState<MarketGateState[]>([]);
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const [draftConfig, setDraftConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [appliedConfig, setAppliedConfig] = useState<AppConfig>(DEFAULT_CONFIG);
@@ -61,7 +59,6 @@ export function useMarketGate() {
   const [lastError, setLastError] = useState("");
   const [reconnectToken, setReconnectToken] = useState(0);
   const runIdRef = useRef<string | null>(null);
-  const revisionRef = useRef<number | null>(null);
   const configRequestGenerationRef = useRef(0);
   const configMutationGenerationRef = useRef(0);
   const configAbortRef = useRef<AbortController | null>(null);
@@ -70,9 +67,7 @@ export function useMarketGate() {
 
   const clearLiveState = useCallback(() => {
     setState(EMPTY_STATE);
-    setHistory([]);
     runIdRef.current = null;
-    revisionRef.current = null;
   }, []);
 
   const clearTransient = () => {
@@ -169,8 +164,6 @@ export function useMarketGate() {
         runIdRef.current !== null &&
         parsed.health.run_id !== runIdRef.current
       ) {
-        setHistory([]);
-        revisionRef.current = null;
         void syncConfig();
       }
       runIdRef.current = parsed.health.run_id;
@@ -180,10 +173,6 @@ export function useMarketGate() {
         return;
       }
       setStatus("connected");
-      if (parsed.gate.revision !== revisionRef.current) {
-        revisionRef.current = parsed.gate.revision;
-        setHistory((items) => [...items, parsed].slice(-32));
-      }
     };
     socket.onerror = () => {
       clearLiveState();
@@ -294,7 +283,6 @@ export function useMarketGate() {
   return {
     apiUrl: API_URL,
     state,
-    history,
     hasSnapshot: state.health.ready,
     status,
     draftConfig,

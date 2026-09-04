@@ -7,7 +7,6 @@ import {
   signed,
 } from "../lib/format";
 import type { Expert, MarketGateState } from "../lib/types";
-import { HistoryChart } from "./HistoryChart";
 import { Metric, SectionTitle, WeightRow } from "./Primitives";
 
 const modeTitle = (mode: MarketGateState["gate"]["mode"]) =>
@@ -195,11 +194,9 @@ export function GateSection({
 
 export function ExpertsSection({
   state,
-  history,
   ready,
 }: {
   state: MarketGateState;
-  history: MarketGateState[];
   ready: boolean;
 }) {
   return (
@@ -219,18 +216,6 @@ export function ExpertsSection({
             ready={ready}
           />
         ))}
-      </div>
-      <div className="panel chart-panel">
-        <div className="panel-heading">
-          <div>
-            <span className="panel-kicker teal">
-              WEIGHT / CONTRIBUTION HISTORY
-            </span>
-            <h3>How the mix has moved</h3>
-          </div>
-          <span className="chart-window">last {history.length} revisions</span>
-        </div>
-        <HistoryChart history={history} />
       </div>
     </section>
   );
