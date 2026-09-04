@@ -41,8 +41,7 @@ class MarketRuntime:
         return snapshot
 
     async def start(self) -> None:
-        async with self._lock:
-            await self._restart_locked()
+        await self.reset()
 
     async def stop(self) -> None:
         async with self._lock:
