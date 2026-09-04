@@ -15,8 +15,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--input", type=Path, default=root / "data" / "binance-btcusdt-sample.jsonl"
     )
-    parser.add_argument("--output", type=Path, default=root / "models" / "gate-binance-demo.npz")
-    parser.add_argument("--receipt", type=Path, default=root / "artifacts" / "training-demo.json")
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--receipt", type=Path, required=True)
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--seed", type=int, default=7)
