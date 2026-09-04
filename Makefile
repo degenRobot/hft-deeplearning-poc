@@ -1,4 +1,4 @@
-.PHONY: setup test backend frontend record train
+.PHONY: setup test backend frontend record train modal-plan
 
 setup:
 	uv sync --extra dev
@@ -21,3 +21,6 @@ record:
 
 train:
 	uv run --extra training python scripts/train_gate.py
+
+modal-plan:
+	uv run --extra modal python scripts/train_on_modal.py

@@ -114,13 +114,15 @@ function TrainingCommands() {
       <div>
         <span className="panel-kicker teal">RUN IT LOCALLY</span>
         <p>
-          The browser only shows the receipt. These two small commands record a
-          new sample and run the example trainer.
+          The browser only shows the receipt. The committed receipt is from
+          local CPU; the optional Modal remote smoke has not run. Use these
+          commands to repeat the local path or inspect its parity plan.
         </p>
       </div>
       <code>
         <span>uv run --extra training python scripts/record_binance.py</span>
         <span>uv run --extra training python scripts/train_gate.py</span>
+        <span>make modal-plan</span>
       </code>
     </div>
   );

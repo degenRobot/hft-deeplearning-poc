@@ -84,6 +84,24 @@ and reversion experts keep longer rolling state. The short run proves only that 
 plumbing works. It is not a backtest or evidence of generalization, trading performance, or
 profitability.
 
+### Optional Modal parity plan
+
+Modal is optional; local CPU remains the default. Inspect the safe local plan with:
+
+```sh
+make modal-plan
+```
+
+That dry-run prints the source and model hashes plus the training config, and contacts no remote
+compute. A real smoke run requires the explicit `--run` flag:
+
+```sh
+uv run --extra modal python scripts/train_on_modal.py --run
+```
+
+Check current Modal credits and expected spend before starting it. The committed receipt is from
+local CPU, and no remote Modal smoke run has been completed here.
+
 ## Change the inputs
 
 Defaults live in `configs/demo.toml`. The dashboard sends the same safe fields to the backend at
