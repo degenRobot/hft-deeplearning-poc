@@ -11,7 +11,7 @@ import { Metric, SectionTitle, WeightRow } from "./Primitives";
 
 const modeTitle = (mode: MarketGateState["gate"]["mode"]) =>
   ({
-    neural: "Neural model",
+    neural: "Demo neural gate",
     uniform: "Uniform baseline",
     static: "Static baseline",
     "uniform-fallback": "Uniform fallback",
@@ -137,9 +137,9 @@ export function GateSection({
     <section className="dashboard-section">
       <SectionTitle
         index="02"
-        eyebrow="slow plane"
+        eyebrow="active runtime policy"
         title={`${modeTitle(mode)} sets the mix`}
-        description="Refreshes at its configured cadence. It only changes bounded expert weights."
+        description="The bundled demo model or a selected baseline sets bounded expert weights. The offline experiments below do not replace it."
       />
       <div className="split-grid">
         <article className="panel gate-panel">
