@@ -17,13 +17,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-INPUT = Path("data/binance-btcusdt-sample.jsonl")
-MODEL = Path("models/gate-binance-demo.npz")
+INPUT = Path("fixtures/parity-replay-v2.jsonl")
+MODEL = Path("models/gate-parity-v2.npz")
 # Modal 1.5.2 accepts (request, hard limit), in cores and MiB respectively.
 CAPS = {"cpu": (2, 2), "memory": (2048, 2048), "timeout": 300, "retries": 0}
 LIMITATIONS = [
     "This is a CPU-only reproducibility smoke, not a performance benchmark or trading signal.",
-    "Tracked private repository src files and the selected public market recording are uploaded.",
+    "Tracked private repository src files and the selected recording or synthetic fixture "
+    "are uploaded.",
     "The remote model remains ephemeral; this command never replaces a committed model.",
     "The 300-second timeout covers function execution, not image build or the whole job; "
     "resource limits are not a billing cap.",

@@ -119,11 +119,11 @@ def should_keep_book(event_ts_ms: int, last_kept_ts_ms: int | None, interval_ms:
 def write_recording(
     path: Path, events: list[BookEvent | TradeEvent], book_interval_ms: int
 ) -> dict[str, int]:
-    """Write normalized public events, downsampling only book updates."""
+    """Create a new normalized recording, downsampling only book updates."""
     path.parent.mkdir(parents=True, exist_ok=True)
     counts = {"book": 0, "trade": 0, "total": 0}
     last_book_ts_ms: int | None = None
-    with path.open("w", encoding="utf-8") as handle:
+    with path.open("x", encoding="utf-8") as handle:
         for event in events:
             if isinstance(event, BookEvent):
                 if not should_keep_book(event.event_ts_ms, last_book_ts_ms, book_interval_ms):
@@ -437,10 +437,17 @@ def train_recording(
         "schema_version": 2,
         "generated_at": datetime.now(tz=UTC).isoformat().replace("+00:00", "Z"),
         "source": {
-            "name": "Binance public WebSocket sample",
+            "name": {
+                "binance": "Binance public WebSocket sample",
+                "replay": "Synthetic replay fixture",
+            }.get(events[0].venue, "Normalized market recording"),
             "symbol": events[0].symbol,
             "venue": events[0].venue,
-            "url": "https://developers.binance.com/docs/binance-spot-api-docs/web-socket-streams",
+            "url": (
+                "https://developers.binance.com/docs/binance-spot-api-docs/web-socket-streams"
+                if events[0].venue == "binance"
+                else None
+            ),
             "recording_path": _relative_path(recording_path, root),
             "started_at": _utc_timestamp(min(event.event_ts_ms for event in events)),
             "ended_at": _utc_timestamp(max(event.event_ts_ms for event in events)),
