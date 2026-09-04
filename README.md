@@ -96,7 +96,7 @@ That dry-run prints the source and model hashes plus the training config, and co
 compute. A real smoke run requires the explicit `--run` flag:
 
 ```sh
-uv run --extra modal python scripts/train_on_modal.py --run
+uv run --with modal==1.5.2 python scripts/train_on_modal.py --run
 ```
 
 Check current Modal credits and expected spend before starting it. The committed receipt is from

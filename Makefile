@@ -23,4 +23,4 @@ train:
 	uv run --extra training python scripts/train_gate.py
 
 modal-plan:
-	uv run --extra modal python scripts/train_on_modal.py
+	uv run --with modal==1.5.2 python scripts/train_on_modal.py
