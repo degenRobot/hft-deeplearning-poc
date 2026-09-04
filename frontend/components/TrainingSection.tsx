@@ -1,107 +1,89 @@
 "use client";
 
+import { useTrainingReceipt } from "../hooks/useTrainingReceipt";
 import {
   formatTrainingCount,
   formatTrainingDuration,
   formatTrainingLoss,
+  type TrainingReceipt,
 } from "../lib/training";
-import { useTrainingReceipt } from "../hooks/useTrainingReceipt";
-import type { TrainingReceipt } from "../lib/training";
 import { SectionTitle } from "./Primitives";
 
 const steps = [
-  {
-    number: "01",
-    title: "Record",
-    text: "Keep a small public book + trade sample.",
-  },
-  {
-    number: "02",
-    title: "Frame",
-    text: "Aggregate events into causal one-second features.",
-  },
-  {
-    number: "03",
-    title: "Label",
-    text: "Turn 30 frames × 10 features into short-horizon utilities.",
-  },
-  {
-    number: "04",
-    title: "Train",
-    text: "Fit the slow gate, then check later validation examples.",
-  },
-];
+  ["01", "Record", "Keep a small public book + trade sample."],
+  ["02", "Frame", "Aggregate events into causal one-second features."],
+  ["03", "Label", "Turn 30 frames × 10 features into short-horizon utilities."],
+  ["04", "Train", "Fit the slow gate, then check later validation examples."],
+] as const;
 
 function ReceiptMetrics({ receipt }: { receipt: TrainingReceipt }) {
   const { source, dataset, training } = receipt;
+  const metrics = [
+    [
+      "Sample",
+      source.symbol,
+      `${source.venue} · ${formatTrainingDuration(source.duration_seconds)}`,
+    ],
+    [
+      "Recorded events",
+      formatTrainingCount(source.event_counts.total),
+      `${formatTrainingCount(source.event_counts.book)} book · ${formatTrainingCount(source.event_counts.trade)} trade`,
+    ],
+    [
+      "Dataset",
+      `${formatTrainingCount(dataset.examples)} examples`,
+      `${formatTrainingCount(dataset.frames)} frames · ${dataset.lookback_frames} × ${dataset.feature_names.length} window`,
+    ],
+    [
+      "Chronological split",
+      `${formatTrainingCount(dataset.train_examples)} / ${formatTrainingCount(dataset.validation_examples)}`,
+      "train / validation examples",
+    ],
+  ];
+  const details = [
+    ["Run", `${training.epochs} epochs · seed ${training.seed}`],
+    [
+      "Train loss",
+      `${formatTrainingLoss(training.first_train_loss)} → ${formatTrainingLoss(training.last_train_loss)}`,
+    ],
+    ["Validation loss", formatTrainingLoss(training.validation_loss)],
+    ["Parameters", formatTrainingCount(training.parameter_count)],
+    ["Learning rate", training.learning_rate],
+    ["Model artifact", training.model_path],
+  ];
   return (
     <>
       <div className="training-metrics">
-        <div className="training-metric">
-          <span className="metric-label">Sample</span>
-          <strong>{source.symbol}</strong>
-          <span className="metric-detail">
-            {source.venue} · {formatTrainingDuration(source.duration_seconds)}
-          </span>
-        </div>
-        <div className="training-metric">
-          <span className="metric-label">Recorded events</span>
-          <strong>{formatTrainingCount(source.event_counts.total)}</strong>
-          <span className="metric-detail">
-            {formatTrainingCount(source.event_counts.book)} book ·{" "}
-            {formatTrainingCount(source.event_counts.trade)} trade
-          </span>
-        </div>
-        <div className="training-metric">
-          <span className="metric-label">Dataset</span>
-          <strong>{formatTrainingCount(dataset.examples)} examples</strong>
-          <span className="metric-detail">
-            {formatTrainingCount(dataset.frames)} frames ·{" "}
-            {dataset.lookback_frames} × {dataset.feature_names.length} window
-          </span>
-        </div>
-        <div className="training-metric">
-          <span className="metric-label">Chronological split</span>
-          <strong>
-            {formatTrainingCount(dataset.train_examples)} /{" "}
-            {formatTrainingCount(dataset.validation_examples)}
-          </strong>
-          <span className="metric-detail">train / validation examples</span>
-        </div>
+        {metrics.map(([label, value, detail]) => (
+          <div className="training-metric" key={label}>
+            <span className="metric-label">{label}</span>
+            <strong>{value}</strong>
+            <span className="metric-detail">{detail}</span>
+          </div>
+        ))}
       </div>
       <div className="training-detail-grid">
         <dl className="panel training-detail-panel">
-          <div>
-            <dt>Run</dt>
-            <dd>
-              {training.epochs} epochs · seed {training.seed}
-            </dd>
-          </div>
-          <div>
-            <dt>Train loss</dt>
-            <dd>
-              {formatTrainingLoss(training.first_train_loss)} →{" "}
-              {formatTrainingLoss(training.last_train_loss)}
-            </dd>
-          </div>
-          <div>
-            <dt>Validation loss</dt>
-            <dd>{formatTrainingLoss(training.validation_loss)}</dd>
-          </div>
+          {details.slice(0, 3).map(([label, value]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
         </dl>
         <dl className="panel training-detail-panel">
-          <div>
-            <dt>Parameters</dt>
-            <dd>{formatTrainingCount(training.parameter_count)}</dd>
-          </div>
-          <div>
-            <dt>Learning rate</dt>
-            <dd>{training.learning_rate}</dd>
-          </div>
-          <div>
-            <dt>Model artifact</dt>
-            <dd className="training-path">{training.model_path}</dd>
-          </div>
+          {details.slice(3).map(([label, value]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd
+                className={
+                  label === "Model artifact" ? "training-path" : undefined
+                }
+              >
+                {value}
+              </dd>
+            </div>
+          ))}
         </dl>
       </div>
     </>
@@ -143,11 +125,11 @@ export function TrainingSection() {
         </span>
       </SectionTitle>
       <div className="training-pipeline" aria-label="Training pipeline">
-        {steps.map((step) => (
-          <article className="training-step" key={step.number}>
-            <span className="training-step-number">{step.number}</span>
-            <h3>{step.title}</h3>
-            <p>{step.text}</p>
+        {steps.map(([number, title, text]) => (
+          <article className="training-step" key={number}>
+            <span className="training-step-number">{number}</span>
+            <h3>{title}</h3>
+            <p>{text}</p>
           </article>
         ))}
       </div>
