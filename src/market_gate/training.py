@@ -475,7 +475,7 @@ def train_recording(
             "model_path": _relative_path(model_path, root),
         },
         "limitations": [
-            "A short public sample is a teaching artifact, not a trading signal or backtest.",
+            "A short sample is a teaching artifact, not a trading signal or backtest.",
             "The labels use one-second proxies for the live microprice, flow, and reversion "
             "experts; flow and reversion do not reproduce the live engine's rolling state.",
             "The exported model is an offline example and is not the gate used by the live demo.",
