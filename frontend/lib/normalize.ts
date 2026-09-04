@@ -136,6 +136,8 @@ export function parseStateMessage(message: string): MarketGateState | null {
       typeof health.ready !== "boolean" ||
       typeof health.feed_status !== "string" ||
       !validNumber(raw.timestamp) ||
+      Number(raw.timestamp) < 0 ||
+      Number.isNaN(new Date(Number(raw.timestamp)).valueOf()) ||
       !validNumber(market.mid) ||
       !validNumber(gate.revision) ||
       ![
@@ -150,7 +152,11 @@ export function parseStateMessage(message: string): MarketGateState | null {
         paper.inventory,
         paper.pnl,
         health.message_age_ms,
+        health.book_age_ms,
       ].every(validNumber) ||
+      Number(health.message_age_ms) < 0 ||
+      Number(health.book_age_ms) < 0 ||
+      Number(market.spread_bps) < 0 ||
       !["neural", "uniform", "static", "uniform-fallback"].includes(
         String(gate.mode),
       ) ||
@@ -165,7 +171,9 @@ export function parseStateMessage(message: string): MarketGateState | null {
         );
       }) ||
       (health.ready &&
-        (Number(market.mid) <= 0 || health.feed_status !== "running")) ||
+        (Number(raw.timestamp) <= 0 ||
+          Number(market.mid) <= 0 ||
+          health.feed_status !== "running")) ||
       !["replay", "binance"].includes(String(raw.source)) ||
       typeof raw.symbol !== "string" ||
       (raw.quote !== null &&

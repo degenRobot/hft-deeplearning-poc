@@ -12,6 +12,22 @@ function deferred<T>() {
   });
   return { promise, resolve };
 }
+function wireSnapshot(run = "run-1", generation = 1) {
+  return {
+    ...EMPTY_STATE,
+    timestamp: 1000,
+    market: { ...EMPTY_STATE.market, mid: 100 },
+    gate: { ...EMPTY_STATE.gate, revision: 1 },
+    quote: { bid: 99, ask: 101 } as { bid: number; ask: number } | null,
+    health: {
+      ...EMPTY_STATE.health,
+      ready: true,
+      feed_status: "running",
+      run_id: run,
+      feed_generation: generation,
+    },
+  };
+}
 class FakeSocket {
   static instances: FakeSocket[] = [];
   onopen?: () => void;
@@ -25,22 +41,7 @@ class FakeSocket {
     this.onclose?.();
   }
   sendState(run = "run-1", generation = 1) {
-    this.onmessage?.({
-      data: JSON.stringify({
-        ...EMPTY_STATE,
-        timestamp: 1000,
-        market: { ...EMPTY_STATE.market, mid: 100 },
-        gate: { ...EMPTY_STATE.gate, revision: 1 },
-        quote: { bid: 99, ask: 101 },
-        health: {
-          ...EMPTY_STATE.health,
-          ready: true,
-          feed_status: "running",
-          run_id: run,
-          feed_generation: generation,
-        },
-      }),
-    });
+    this.onmessage?.({ data: JSON.stringify(wireSnapshot(run, generation)) });
   }
 }
 let latest: ReturnType<typeof useMarketGate>;
@@ -135,6 +136,82 @@ describe("market hook lifecycle", () => {
       expect(latest.status).toBe("error");
     },
   );
+
+  const invalidReadyCases: [
+    string,
+    (payload: ReturnType<typeof wireSnapshot>) => void,
+  ][] = [
+    [
+      "zero timestamp",
+      (p) => {
+        p.timestamp = 0;
+      },
+    ],
+    [
+      "invalid Date timestamp",
+      (p) => {
+        p.timestamp = 1e30;
+      },
+    ],
+    [
+      "negative message age",
+      (p) => {
+        p.health.message_age_ms = -1;
+      },
+    ],
+    [
+      "missing book age",
+      (p) => {
+        Reflect.deleteProperty(p.health, "book_age_ms");
+      },
+    ],
+    [
+      "negative book age",
+      (p) => {
+        p.health.book_age_ms = -1;
+      },
+    ],
+    [
+      "negative spread",
+      (p) => {
+        p.market.spread_bps = -1;
+      },
+    ],
+  ];
+  it.each(invalidReadyCases)(
+    "clears ready state for %s instead of normalizing it into validity",
+    async (_label, corrupt) => {
+      await mount();
+      const socket = FakeSocket.instances[0];
+      await flush(() => socket.sendState());
+      expect(latest.hasSnapshot).toBe(true);
+      const payload = wireSnapshot();
+      corrupt(payload);
+      await flush(() => socket.onmessage?.({ data: JSON.stringify(payload) }));
+      expect(latest.hasSnapshot).toBe(false);
+      expect(latest.state.quote).toBeNull();
+      expect(latest.lastError).toContain("invalid state snapshot");
+    },
+  );
+
+  it("accepts an initial not-ready backend snapshot and a ready guarded quote", async () => {
+    await mount();
+    const socket = FakeSocket.instances[0];
+    const payload = wireSnapshot();
+    payload.timestamp = 0;
+    payload.market.mid = 0;
+    payload.quote = null;
+    payload.health.ready = false;
+    payload.health.feed_status = "starting";
+    await flush(() => socket.onmessage?.({ data: JSON.stringify(payload) }));
+    expect(latest.hasSnapshot).toBe(false);
+    expect(latest.lastError).toBe("");
+    expect(latest.state.health.run_id).toBe("run-1");
+    const guarded = { ...wireSnapshot(), quote: null };
+    await flush(() => socket.onmessage?.({ data: JSON.stringify(guarded) }));
+    expect(latest.hasSnapshot).toBe(true);
+    expect(latest.state.quote).toBeNull();
+  });
 
   it("ignores old socket callbacks while a new connection accepts restarted generations", async () => {
     await mount();
@@ -261,6 +338,40 @@ describe("market hook lifecycle", () => {
     });
     expect(latest.draftConfig.expert_strength).toBe(2);
     expect(latest.dirty).toBe(true);
+  });
+
+  it("does not restore apply A's error after apply B succeeds while A's recovery GET is pending", async () => {
+    await mount();
+    await flush(() => latest.updateDraft("gate_mode", "uniform"));
+    let applyA!: Promise<void>;
+    await flush(() => {
+      applyA = latest.applyConfig();
+    });
+    const recovery = deferred<unknown>();
+    getReplies.push(recovery.promise);
+    await flush(() => mutations[0].reply.resolve({ gate_mode: "uniform" }));
+    expect(latest.applying).toBe(false);
+    expect(latest.settingsError).toContain("invalid run receipt");
+    let applyB!: Promise<void>;
+    await flush(() => {
+      applyB = latest.applyConfig();
+    });
+    serverConfig = { ...DEFAULT_CONFIG, gate_mode: "uniform" };
+    await act(async () => {
+      mutations[1].reply.resolve({
+        ...serverConfig,
+        run_id: "run-2",
+        feed_generation: 2,
+      });
+      await applyB;
+    });
+    expect(latest.settingsError).toBe("");
+    await act(async () => {
+      recovery.resolve(DEFAULT_CONFIG);
+      await applyA;
+    });
+    expect(latest.settingsError).toBe("");
+    expect(latest.appliedConfig.gate_mode).toBe("uniform");
   });
 
   it("rejects a config mutation without a complete run receipt", async () => {

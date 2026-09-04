@@ -82,7 +82,7 @@ export function useMarketGate() {
     configRequestGenerationRef.current += 1;
   };
 
-  const syncConfig = useCallback(async () => {
+  const syncConfig = useCallback(async (mutationError = "") => {
     if (mutatingRef.current) return;
     configAbortRef.current?.abort();
     const controller = new AbortController();
@@ -115,7 +115,7 @@ export function useMarketGate() {
         draftConfigRef.current = merged.draftConfig;
         setDraftConfig(merged.draftConfig);
       }
-      setSettingsError("");
+      setSettingsError(mutationError);
     } catch (error: unknown) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       if (!isCurrent()) return;
@@ -297,8 +297,7 @@ export function useMarketGate() {
     } finally {
       mutatingRef.current = false;
       setApplying(false);
-      await syncConfig();
-      if (mutationError) setSettingsError(mutationError);
+      await syncConfig(mutationError);
     }
   };
 
