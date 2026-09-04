@@ -30,9 +30,24 @@ const API_URL = (process.env.NEXT_PUBLIC_API_URL || API_DEFAULT).replace(
   "",
 );
 
+const errorText = (cause: unknown, fallback: string) =>
+  cause instanceof Error ? cause.message : fallback;
+
+const request = async (
+  path: string,
+  init: RequestInit,
+  label: string,
+  jsonFallback?: unknown,
+) => {
+  const response = await fetch(`${API_URL}${path}`, init);
+  if (!response.ok) throw new Error(`${label} ${response.status}`);
+  return jsonFallback === undefined
+    ? response.json()
+    : response.json().catch(() => jsonFallback);
+};
+
 export function useMarketGate() {
   const [state, setState] = useState(EMPTY_STATE);
-  const [hasSnapshot, setHasSnapshot] = useState(false);
   const [history, setHistory] = useState<MarketGateState[]>([]);
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const [draftConfig, setDraftConfig] = useState<AppConfig>(DEFAULT_CONFIG);
@@ -44,9 +59,7 @@ export function useMarketGate() {
   const [resetError, setResetError] = useState("");
   const [resetResult, setResetResult] = useState<ResetResponse | null>(null);
   const [lastError, setLastError] = useState("");
-  const [nextRefresh, setNextRefresh] = useState(0);
   const [reconnectToken, setReconnectToken] = useState(0);
-  const wsRef = useRef<WebSocket | null>(null);
   const runIdRef = useRef<string | null>(null);
   const revisionRef = useRef<number | null>(null);
   const configRequestGenerationRef = useRef(0);
@@ -57,18 +70,27 @@ export function useMarketGate() {
 
   const clearLiveState = useCallback(() => {
     setState(EMPTY_STATE);
-    setHasSnapshot(false);
     setHistory([]);
-    setNextRefresh(0);
     runIdRef.current = null;
     revisionRef.current = null;
   }, []);
 
-  const invalidateConfigReads = useCallback(() => {
+  const clearTransient = () => {
+    setSettingsError("");
+    setResetResult(null);
+    setResetError("");
+  };
+
+  const setDraft = (next: AppConfig) => {
+    draftConfigRef.current = next;
+    setDraftConfig(next);
+  };
+
+  const invalidateConfigReads = () => {
     configAbortRef.current?.abort();
     configAbortRef.current = null;
     configRequestGenerationRef.current += 1;
-  }, []);
+  };
 
   const syncConfig = useCallback(async () => {
     configAbortRef.current?.abort();
@@ -84,12 +106,12 @@ export function useMarketGate() {
         mutationGeneration: configMutationGenerationRef.current,
       });
     try {
-      const response = await fetch(`${API_URL}/config`, {
-        signal: controller.signal,
-      });
-      if (!response.ok)
-        throw new Error(`Config request returned ${response.status}`);
-      const canonical = normalizeConfig(await response.json());
+      const payload = await request(
+        "/config",
+        { signal: controller.signal },
+        "Config request returned",
+      );
+      const canonical = normalizeConfig(payload);
       if (!isCurrent()) return;
       const merged = mergeConfigResponse(
         draftConfigRef.current,
@@ -106,9 +128,7 @@ export function useMarketGate() {
     } catch (error: unknown) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       if (!isCurrent()) return;
-      setSettingsError(
-        error instanceof Error ? error.message : "Could not load config",
-      );
+      setSettingsError(errorText(error, "Could not load config"));
     } finally {
       if (isCurrent()) {
         setConfigLoading(false);
@@ -132,7 +152,6 @@ export function useMarketGate() {
     setLastError("");
     clearLiveState();
     const socket = new WebSocket(websocketUrl(API_URL));
-    wsRef.current = socket;
     socket.onopen = () => {
       setStatus("connecting");
       setLastError("");
@@ -156,8 +175,6 @@ export function useMarketGate() {
       }
       runIdRef.current = parsed.health.run_id;
       setState(parsed);
-      setHasSnapshot(parsed.health.ready);
-      setNextRefresh(parsed.health.ready ? parsed.gate.next_refresh_ms : 0);
       if (!parsed.health.ready) {
         setStatus("connecting");
         return;
@@ -174,7 +191,6 @@ export function useMarketGate() {
       setLastError(`Could not reach ${API_URL}`);
     };
     socket.onclose = () => {
-      wsRef.current = null;
       if (closedByEffect) return;
       clearLiveState();
       setStatus("disconnected");
@@ -190,90 +206,75 @@ export function useMarketGate() {
     };
   }, [clearLiveState, reconnectToken, syncConfig]);
 
-  const updateDraft = useCallback(
-    (key: keyof AppConfig, value: string | number) => {
-      const next = {
-        ...draftConfigRef.current,
-        [key]: value,
-      } as AppConfig;
-      draftConfigRef.current = next;
-      setDraftConfig(next);
-      setSettingsError("");
-      setResetResult(null);
-      setResetError("");
-    },
-    [],
-  );
+  const updateDraft = (key: keyof AppConfig, value: string | number) => {
+    const next = {
+      ...draftConfigRef.current,
+      [key]: value,
+    } as AppConfig;
+    setDraft(next);
+    clearTransient();
+  };
 
-  const selectPreset = useCallback((id: PresetId) => {
+  const selectPreset = (id: PresetId) => {
     const next = { ...draftConfigRef.current, ...presetById(id).patch };
-    draftConfigRef.current = next;
-    setDraftConfig(next);
-    setSettingsError("");
-    setResetResult(null);
-    setResetError("");
-  }, []);
+    setDraft(next);
+    clearTransient();
+  };
 
-  const revertDraft = useCallback(() => {
+  const revertDraft = () => {
     invalidateConfigReads();
-    draftConfigRef.current = appliedConfigRef.current;
-    setDraftConfig(appliedConfigRef.current);
-    setSettingsError("");
-    setResetResult(null);
-    setResetError("");
+    setDraft(appliedConfigRef.current);
+    clearTransient();
     void syncConfig();
-  }, [invalidateConfigReads, syncConfig]);
+  };
 
-  const applyConfig = useCallback(async () => {
+  const applyConfig = async () => {
     const errors = validateConfig(draftConfig);
     if (errors.length) {
       setSettingsError(errors[0]);
       return;
     }
-    setSettingsError("");
-    setResetResult(null);
-    setResetError("");
+    clearTransient();
     setApplying(true);
     invalidateConfigReads();
     try {
-      const response = await fetch(`${API_URL}/config`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(draftConfig),
-      });
-      if (!response.ok)
-        throw new Error(`Config update returned ${response.status}`);
-      const canonical = normalizeConfig(
-        await response.json().catch(() => draftConfig),
+      const payload = await request(
+        "/config",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(draftConfig),
+        },
+        "Config update returned",
         draftConfig,
       );
+      const canonical = normalizeConfig(payload, draftConfig);
       // The backend starts a new engine for every applied config. Clear the
       // previous run before exposing its new labels or cadence in the UI.
       clearLiveState();
       setStatus("connecting");
       configMutationGenerationRef.current += 1;
       appliedConfigRef.current = canonical;
-      draftConfigRef.current = canonical;
       setAppliedConfig(canonical);
-      setDraftConfig(canonical);
+      setDraft(canonical);
     } catch (error: unknown) {
-      setSettingsError(
-        error instanceof Error ? error.message : "Could not update config",
-      );
+      setSettingsError(errorText(error, "Could not update config"));
     } finally {
       setApplying(false);
     }
-  }, [clearLiveState, draftConfig, invalidateConfigReads]);
+  };
 
-  const resetRun = useCallback(async () => {
+  const resetRun = async () => {
     setResetting(true);
-    setResetError("");
-    setResetResult(null);
+    clearTransient();
     clearLiveState();
     try {
-      const response = await fetch(`${API_URL}/reset`, { method: "POST" });
-      if (!response.ok) throw new Error(`Reset returned ${response.status}`);
-      const result = parseResetResponse(await response.json());
+      const payload = await request(
+        "/reset",
+        { method: "POST" },
+        "Reset returned",
+      );
+      const result = parseResetResponse(payload);
       if (!result) throw new Error("Reset returned an invalid run receipt");
       // A snapshot from the prior run can arrive while the reset request is in
       // flight. Clear once more after the backend acknowledges the new run.
@@ -282,24 +283,19 @@ export function useMarketGate() {
       setResetResult(result);
       await syncConfig();
     } catch (error: unknown) {
-      setResetError(
-        error instanceof Error ? error.message : "Could not reset run",
-      );
+      setResetError(errorText(error, "Could not reset run"));
     } finally {
       setResetting(false);
     }
-  }, [clearLiveState, syncConfig]);
+  };
 
-  const reconnect = useCallback(
-    () => setReconnectToken((token) => token + 1),
-    [],
-  );
+  const reconnect = () => setReconnectToken((token) => token + 1);
   const configErrors = validateConfig(draftConfig);
   return {
     apiUrl: API_URL,
     state,
     history,
-    hasSnapshot,
+    hasSnapshot: state.health.ready,
     status,
     draftConfig,
     appliedConfig,
@@ -310,7 +306,7 @@ export function useMarketGate() {
     resetError,
     resetResult,
     lastError,
-    nextRefresh,
+    nextRefresh: state.health.ready ? state.gate.next_refresh_ms : 0,
     dirty: !configsEqual(draftConfig, appliedConfig),
     configErrors,
     updateDraft,

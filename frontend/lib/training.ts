@@ -63,56 +63,53 @@ const integerValue = (value: unknown) => {
   return number !== null && Number.isInteger(number) ? number : null;
 };
 
-const readStrings = <T extends readonly string[]>(
-  record: UnknownRecord,
-  keys: T,
-) => {
-  const values = keys.map((key) => stringValue(record[key]));
-  return values.every((value): value is string => value !== null)
-    ? (Object.fromEntries(
-        keys.map((key, index) => [key, values[index]]),
-      ) as Record<T[number], string>)
+const stringArray = (value: unknown): string[] | null =>
+  Array.isArray(value) &&
+  value.every((item): item is string => typeof item === "string")
+    ? value
     : null;
-};
 
-const readNumbers = <T extends readonly string[]>(
+const readFields = <T extends readonly string[], V>(
   record: UnknownRecord,
   keys: T,
-  read: (value: unknown) => number | null,
-  valid: (value: number) => boolean,
+  read: (value: unknown) => V | null,
+  valid: (value: V) => boolean = () => true,
 ) => {
   const values = keys.map((key) => read(record[key]));
   return values.every((value) => value !== null && valid(value))
     ? (Object.fromEntries(
         keys.map((key, index) => [key, values[index]]),
-      ) as Record<T[number], number>)
+      ) as Record<T[number], V>)
     : null;
 };
 
 function readEventCounts(value: unknown): TrainingEventCounts | null {
-  if (!isRecord(value)) return null;
-  const counts = readNumbers(
-    value,
-    ["book", "trade", "total"] as const,
-    integerValue,
-    (number) => number >= 0,
-  );
-  if (!counts) return null;
-  return counts;
+  return isRecord(value)
+    ? readFields(
+        value,
+        ["book", "trade", "total"] as const,
+        integerValue,
+        (number) => number >= 0,
+      )
+    : null;
 }
 
 function readSource(value: unknown): TrainingSource | null {
   if (!isRecord(value)) return null;
-  const strings = readStrings(value, [
-    "name",
-    "symbol",
-    "venue",
-    "url",
-    "recording_path",
-    "started_at",
-    "ended_at",
-  ] as const);
-  const duration = readNumbers(
+  const strings = readFields(
+    value,
+    [
+      "name",
+      "symbol",
+      "venue",
+      "url",
+      "recording_path",
+      "started_at",
+      "ended_at",
+    ] as const,
+    stringValue,
+  );
+  const duration = readFields(
     value,
     ["duration_seconds"] as const,
     numberValue,
@@ -135,18 +132,16 @@ function readSource(value: unknown): TrainingSource | null {
 }
 
 function readDataset(value: unknown): TrainingDataset | null {
-  if (!isRecord(value) || !Array.isArray(value.feature_names)) return null;
-  const featureNames = value.feature_names.filter(
-    (name): name is string => typeof name === "string",
-  );
-  if (featureNames.length !== value.feature_names.length) return null;
-  const dimensions = readNumbers(
+  if (!isRecord(value)) return null;
+  const featureNames = stringArray(value.feature_names);
+  if (!featureNames) return null;
+  const dimensions = readFields(
     value,
     ["frame_seconds", "lookback_frames", "horizon_frames"] as const,
     numberValue,
     (number) => number > 0,
   );
-  const counts = readNumbers(
+  const counts = readFields(
     value,
     ["frames", "examples", "train_examples", "validation_examples"] as const,
     numberValue,
@@ -162,20 +157,20 @@ function readDataset(value: unknown): TrainingDataset | null {
 
 function readTraining(value: unknown): TrainingRun | null {
   if (!isRecord(value)) return null;
-  const seed = readNumbers(value, ["seed"] as const, integerValue, () => true);
-  const positiveValues = readNumbers(
+  const seed = readFields(value, ["seed"] as const, integerValue);
+  const positiveValues = readFields(
     value,
     ["epochs", "learning_rate"] as const,
     numberValue,
     (number) => number > 0,
   );
-  const parameterCount = readNumbers(
+  const parameterCount = readFields(
     value,
     ["parameter_count"] as const,
     integerValue,
     (number) => number >= 0,
   );
-  const losses = readNumbers(
+  const losses = readFields(
     value,
     ["first_train_loss", "last_train_loss", "validation_loss"] as const,
     numberValue,
@@ -202,13 +197,7 @@ export function normalizeTrainingReceipt(
   const source = readSource(input.source);
   const dataset = readDataset(input.dataset);
   const training = readTraining(input.training);
-  const limitations =
-    Array.isArray(input.limitations) &&
-    input.limitations.every(
-      (limitation): limitation is string => typeof limitation === "string",
-    )
-      ? input.limitations
-      : null;
+  const limitations = stringArray(input.limitations);
   if (
     generatedAt === null ||
     source === null ||

@@ -12,6 +12,9 @@ const API_URL = (process.env.NEXT_PUBLIC_API_URL || API_DEFAULT).replace(
   "",
 );
 
+const errorText = (cause: unknown) =>
+  cause instanceof Error ? cause.message : "Could not load training receipt";
+
 export function useTrainingReceipt() {
   const [receipt, setReceipt] = useState<TrainingReceipt | null>(null);
   const [loading, setLoading] = useState(true);
@@ -20,33 +23,26 @@ export function useTrainingReceipt() {
   useEffect(() => {
     const controller = new AbortController();
 
-    async function loadReceipt() {
-      try {
-        const response = await fetch(`${API_URL}/training`, {
-          signal: controller.signal,
-        });
-        if (!response.ok) {
+    void fetch(`${API_URL}/training`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok)
           throw new Error(`Training receipt returned ${response.status}`);
-        }
-        const parsed = normalizeTrainingReceipt(await response.json());
+        return normalizeTrainingReceipt(await response.json());
+      })
+      .then((parsed) => {
         if (!parsed) throw new Error("Training receipt has an invalid shape");
         setReceipt(parsed);
         setError("");
-      } catch (cause: unknown) {
+      })
+      .catch((cause: unknown) => {
         if (cause instanceof DOMException && cause.name === "AbortError")
           return;
         setReceipt(null);
-        setError(
-          cause instanceof Error
-            ? cause.message
-            : "Could not load training receipt",
-        );
-      } finally {
+        setError(errorText(cause));
+      })
+      .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
-      }
-    }
-
-    void loadReceipt();
+      });
     return () => controller.abort();
   }, []);
 
