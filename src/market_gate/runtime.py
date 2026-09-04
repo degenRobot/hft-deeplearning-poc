@@ -51,7 +51,10 @@ class MarketRuntime:
         async with self._lock:
             self.config.patch(values)
             await self._restart_locked()
-            return self.config.public()
+            return self.config.public() | {
+                "run_id": self.engine.run_id,
+                "feed_generation": self.feed_generation,
+            }
 
     async def reset(self) -> dict[str, object]:
         async with self._lock:
