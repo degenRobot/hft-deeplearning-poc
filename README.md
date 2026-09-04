@@ -16,7 +16,7 @@ not claim to reproduce production HFT or prove profitability.
   training example, NumPy-only inference in the live demo.
 - Uniform and static baselines, weight smoothing, stale-feed suppression, and an attribution
   ledger.
-- A training script and notebook using synthetic, replay-shaped data.
+- A short recorded Binance sample, an offline training script, and a synthetic teaching notebook.
 - A Next.js dashboard with draft presets for changing the feed, gate mode, influence, cadence,
   trade-flow window, expert strength, spread, and paper inventory limit.
 
@@ -55,22 +55,34 @@ internet connection. Open **Runtime settings** to switch to Binance public data 
 neural, uniform, and static weighting modes. Presets change only the local draft until you choose
 **Apply settings**, so it is easy to compare a proposed setup with the running one.
 
-The backend also exposes `GET /health`, `GET/PATCH /config`, `POST /reset`, `GET /ledger`, and
-`WS /ws/market` on <http://localhost:8000>.
+The backend also exposes `GET /health`, `GET/PATCH /config`, `POST /reset`, `GET /ledger`,
+`GET /training`, and `WS /ws/market` on <http://localhost:8000>.
 
-## Train the example gate
+## Record and train the example gate
 
 ```sh
 uv sync --extra training
-uv run python scripts/train_gate.py
+uv run --extra training python scripts/record_binance.py
+uv run --extra training python scripts/train_gate.py
 ```
 
-This deterministically replaces `models/gate-demo.npz`, the small versioned artifact loaded by
-the runtime. The companion notebook is `notebooks/gate_training.ipynb`; it trains the same shape,
-exports the same Torch-free format, and verifies a NumPy inference. Both examples use synthetic
-data so the mechanism stays small and reproducible. A real experiment would need chronological
-train/validation/test windows, train-only normalization, cost assumptions, and an untouched
-promotion holdout.
+The recorder listens for up to two minutes, or 20,000 saved events, on Binance's public
+`bookTicker` and `aggTrade` streams. It keeps all aggregate trades, samples the top of book once
+per second, and writes normalized JSONL without credentials or order access. The trainer builds
+causal one-second frames, forms `30 x 10` windows, keeps validation later than training, and
+writes two inspectable outputs:
+
+- `models/gate-binance-demo.npz`, a separate model that does not replace the live demo model.
+- `artifacts/training-demo.json`, the receipt shown in the dashboard.
+
+The committed sample and receipt let the UI work without making a fresh network call. See
+`data/README.md` for provenance. The companion `notebooks/gate_training.ipynb` remains a smaller
+synthetic walkthrough of the same model shape and Torch-free export.
+
+The labels are deliberately simple one-second proxies for the three live experts; the live flow
+and reversion experts keep longer rolling state. The short run proves only that the data-to-model
+plumbing works. It is not a backtest or evidence of generalization, trading performance, or
+profitability.
 
 ## Change the inputs
 

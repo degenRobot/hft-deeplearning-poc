@@ -3,5 +3,9 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
-artifacts/
+artifacts/*
+!artifacts/training-demo.json
+data/*
+!data/README.md
+!data/binance-btcusdt-sample.jsonl
 *.pt
