@@ -109,8 +109,8 @@ function RuntimeField({
   busy: boolean;
   onChange: SettingsPanelProps["onChange"];
 }) {
-  const id = `runtime-${field.key}`,
-    helpId = `${id}-help`;
+  const id = `runtime-${field.key}`;
+  const helpId = `${id}-help`;
   const handleChange = (
     event: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) =>
@@ -180,12 +180,108 @@ export function SettingsPanel({
   onReset,
 }: SettingsPanelProps) {
   const busy = applying || resetting;
-  // Keep the settings drawer as one readable interaction surface; the data-heavy controls are generated above.
-  // prettier-ignore
-  return <details className="settings" aria-busy={busy}><summary>Runtime settings <span>draft, apply, and reset the simulation</span></summary><div className="settings-body">
-    <fieldset className="preset-fieldset" disabled={busy}><legend>Draft presets</legend><p className="form-help">Choose a starting point. Presets edit strategy fields only; source, symbol, spread, and inventory stay unchanged until Apply.</p><div className="preset-grid">{PRESETS.map((preset) => { const selected = presetMatches(config, preset); return <button type="button" key={preset.id} className={`preset ${selected ? "selected" : ""}`} aria-pressed={selected} onClick={() => onPreset(preset.id)}><strong>{preset.label}</strong><span>{preset.description}</span></button>; })}</div></fieldset>
-    <fieldset className="settings-grid" disabled={busy}><legend>Parameters</legend>{fields.map((field) => <RuntimeField key={field.key} field={field} config={config} busy={busy} onChange={onChange} />)}</fieldset>
-    <div className="settings-actions"><div className={`draft-state ${dirty ? "unsaved" : "saved"}`} role="status"><span className="state-dot" />{dirty ? "Unsaved draft changes" : "Draft matches applied config"}</div>{(invalid || error) && <span className="error-text" role="alert">{invalid ? errors[0] : error}</span>}<button type="button" className="button ghost" onClick={onRevert} disabled={!dirty || busy}>Revert draft</button><button type="button" className="button primary" onClick={onApply} disabled={!dirty || invalid || busy}>{applying ? "Applying…" : "Apply settings"}</button></div>
-    <div className="reset-row"><div><strong>Reset simulation run</strong><small>Restarts the applied config and clears this client’s live view. Unsaved draft changes remain local; this is not an exchange action.</small>{resetResult && <span className="reset-success" role="status">New run {resetResult.run_id} · feed generation {resetResult.feed_generation}</span>}{resetError && <span className="error-text" role="alert">{resetError}</span>}</div><button type="button" className="button reset-button" onClick={onReset} disabled={busy}>{resetting ? "Resetting…" : "Reset simulation"}</button></div>
-  </div></details>;
+  return (
+    <details className="settings" aria-busy={busy}>
+      <summary>
+        Runtime settings <span>draft, apply, and reset the simulation</span>
+      </summary>
+      <div className="settings-body">
+        <fieldset className="preset-fieldset" disabled={busy}>
+          <legend>Draft presets</legend>
+          <p className="form-help">
+            Choose a starting point. Presets edit strategy fields only; source,
+            symbol, spread, and inventory stay unchanged until Apply.
+          </p>
+          <div className="preset-grid">
+            {PRESETS.map((preset) => {
+              const selected = presetMatches(config, preset);
+              return (
+                <button
+                  type="button"
+                  key={preset.id}
+                  className={`preset ${selected ? "selected" : ""}`}
+                  aria-pressed={selected}
+                  onClick={() => onPreset(preset.id)}
+                >
+                  <strong>{preset.label}</strong>
+                  <span>{preset.description}</span>
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+        <fieldset className="settings-grid" disabled={busy}>
+          <legend>Parameters</legend>
+          {fields.map((field) => (
+            <RuntimeField
+              key={field.key}
+              field={field}
+              config={config}
+              busy={busy}
+              onChange={onChange}
+            />
+          ))}
+        </fieldset>
+        <div className="settings-actions">
+          <div
+            className={`draft-state ${dirty ? "unsaved" : "saved"}`}
+            role="status"
+          >
+            <span className="state-dot" />
+            {dirty ? "Unsaved draft changes" : "Draft matches applied config"}
+          </div>
+          {(invalid || error) && (
+            <span className="error-text" role="alert">
+              {invalid ? errors[0] : error}
+            </span>
+          )}
+          <button
+            type="button"
+            className="button ghost"
+            onClick={onRevert}
+            disabled={!dirty || busy}
+          >
+            Revert draft
+          </button>
+          <button
+            type="button"
+            className="button primary"
+            onClick={onApply}
+            disabled={!dirty || invalid || busy}
+          >
+            {applying ? "Applying…" : "Apply settings"}
+          </button>
+        </div>
+        <div className="reset-row">
+          <div>
+            <strong>Reset simulation run</strong>
+            <small>
+              Restarts the applied config and clears this client’s live view.
+              Unsaved draft changes remain local; this is not an exchange
+              action.
+            </small>
+            {resetResult && (
+              <span className="reset-success" role="status">
+                New run {resetResult.run_id} · feed generation{" "}
+                {resetResult.feed_generation}
+              </span>
+            )}
+            {resetError && (
+              <span className="error-text" role="alert">
+                {resetError}
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            className="button reset-button"
+            onClick={onReset}
+            disabled={busy}
+          >
+            {resetting ? "Resetting…" : "Reset simulation"}
+          </button>
+        </div>
+      </div>
+    </details>
+  );
 }

@@ -63,59 +63,73 @@ const integerValue = (value: unknown) => {
   return number !== null && Number.isInteger(number) ? number : null;
 };
 
+const readStrings = <T extends readonly string[]>(
+  record: UnknownRecord,
+  keys: T,
+) => {
+  const values = keys.map((key) => stringValue(record[key]));
+  return values.every((value): value is string => value !== null)
+    ? (Object.fromEntries(
+        keys.map((key, index) => [key, values[index]]),
+      ) as Record<T[number], string>)
+    : null;
+};
+
+const readNumbers = <T extends readonly string[]>(
+  record: UnknownRecord,
+  keys: T,
+  read: (value: unknown) => number | null,
+  valid: (value: number) => boolean,
+) => {
+  const values = keys.map((key) => read(record[key]));
+  return values.every((value) => value !== null && valid(value))
+    ? (Object.fromEntries(
+        keys.map((key, index) => [key, values[index]]),
+      ) as Record<T[number], number>)
+    : null;
+};
+
 function readEventCounts(value: unknown): TrainingEventCounts | null {
   if (!isRecord(value)) return null;
-  const book = integerValue(value.book);
-  const trade = integerValue(value.trade);
-  const total = integerValue(value.total);
-  if (
-    book === null ||
-    trade === null ||
-    total === null ||
-    book < 0 ||
-    trade < 0 ||
-    total < 0
-  ) {
-    return null;
-  }
-  return { book, trade, total };
+  const counts = readNumbers(
+    value,
+    ["book", "trade", "total"] as const,
+    integerValue,
+    (number) => number >= 0,
+  );
+  if (!counts) return null;
+  return counts;
 }
 
 function readSource(value: unknown): TrainingSource | null {
   if (!isRecord(value)) return null;
-  const name = stringValue(value.name);
-  const symbol = stringValue(value.symbol);
-  const venue = stringValue(value.venue);
-  const url = stringValue(value.url);
-  const recordingPath = stringValue(value.recording_path);
-  const startedAt = stringValue(value.started_at);
-  const endedAt = stringValue(value.ended_at);
-  const duration = numberValue(value.duration_seconds);
+  const strings = readStrings(value, [
+    "name",
+    "symbol",
+    "venue",
+    "url",
+    "recording_path",
+    "started_at",
+    "ended_at",
+  ] as const);
+  const duration = readNumbers(
+    value,
+    ["duration_seconds"] as const,
+    numberValue,
+    (number) => number >= 0,
+  );
   const eventCounts = readEventCounts(value.event_counts);
   if (
-    name === null ||
-    symbol === null ||
-    venue === null ||
-    url === null ||
-    !/^https?:\/\//i.test(url) ||
-    recordingPath === null ||
-    startedAt === null ||
-    endedAt === null ||
-    duration === null ||
-    duration < 0 ||
+    !strings ||
+    !duration ||
+    !/^https?:\/\//i.test(strings.url) ||
     eventCounts === null
   ) {
     return null;
   }
   return {
-    name,
-    symbol,
-    venue,
-    url,
-    recording_path: recordingPath,
-    started_at: startedAt,
-    ended_at: endedAt,
-    duration_seconds: duration,
+    ...strings,
+    duration_seconds: duration.duration_seconds,
     event_counts: eventCounts,
   };
 }
@@ -126,76 +140,55 @@ function readDataset(value: unknown): TrainingDataset | null {
     (name): name is string => typeof name === "string",
   );
   if (featureNames.length !== value.feature_names.length) return null;
-  const frameSeconds = numberValue(value.frame_seconds);
-  const lookbackFrames = integerValue(value.lookback_frames);
-  const horizonFrames = integerValue(value.horizon_frames);
-  const frames = integerValue(value.frames);
-  const examples = integerValue(value.examples);
-  const trainExamples = integerValue(value.train_examples);
-  const validationExamples = integerValue(value.validation_examples);
-  if (
-    frameSeconds === null ||
-    frameSeconds <= 0 ||
-    lookbackFrames === null ||
-    lookbackFrames <= 0 ||
-    horizonFrames === null ||
-    horizonFrames <= 0 ||
-    frames === null ||
-    frames < 0 ||
-    examples === null ||
-    examples < 0 ||
-    trainExamples === null ||
-    trainExamples < 0 ||
-    validationExamples === null ||
-    validationExamples < 0
-  ) {
-    return null;
-  }
+  const dimensions = readNumbers(
+    value,
+    ["frame_seconds", "lookback_frames", "horizon_frames"] as const,
+    numberValue,
+    (number) => number > 0,
+  );
+  const counts = readNumbers(
+    value,
+    ["frames", "examples", "train_examples", "validation_examples"] as const,
+    numberValue,
+    (number) => number >= 0,
+  );
+  if (!dimensions || !counts) return null;
   return {
     feature_names: featureNames,
-    frame_seconds: frameSeconds,
-    lookback_frames: lookbackFrames,
-    horizon_frames: horizonFrames,
-    frames,
-    examples,
-    train_examples: trainExamples,
-    validation_examples: validationExamples,
+    ...dimensions,
+    ...counts,
   };
 }
 
 function readTraining(value: unknown): TrainingRun | null {
   if (!isRecord(value)) return null;
-  const seed = integerValue(value.seed);
-  const epochs = integerValue(value.epochs);
-  const learningRate = numberValue(value.learning_rate);
-  const parameterCount = integerValue(value.parameter_count);
-  const firstTrainLoss = numberValue(value.first_train_loss);
-  const lastTrainLoss = numberValue(value.last_train_loss);
-  const validationLoss = numberValue(value.validation_loss);
+  const seed = readNumbers(value, ["seed"] as const, integerValue, () => true);
+  const positiveValues = readNumbers(
+    value,
+    ["epochs", "learning_rate"] as const,
+    numberValue,
+    (number) => number > 0,
+  );
+  const parameterCount = readNumbers(
+    value,
+    ["parameter_count"] as const,
+    integerValue,
+    (number) => number >= 0,
+  );
+  const losses = readNumbers(
+    value,
+    ["first_train_loss", "last_train_loss", "validation_loss"] as const,
+    numberValue,
+    () => true,
+  );
   const modelPath = stringValue(value.model_path);
-  if (
-    seed === null ||
-    epochs === null ||
-    epochs <= 0 ||
-    learningRate === null ||
-    learningRate <= 0 ||
-    parameterCount === null ||
-    parameterCount < 0 ||
-    firstTrainLoss === null ||
-    lastTrainLoss === null ||
-    validationLoss === null ||
-    modelPath === null
-  ) {
+  if (!seed || !positiveValues || !parameterCount || !losses || !modelPath)
     return null;
-  }
   return {
-    seed,
-    epochs,
-    learning_rate: learningRate,
-    parameter_count: parameterCount,
-    first_train_loss: firstTrainLoss,
-    last_train_loss: lastTrainLoss,
-    validation_loss: validationLoss,
+    ...seed,
+    ...positiveValues,
+    ...parameterCount,
+    ...losses,
     model_path: modelPath,
   };
 }
@@ -209,18 +202,19 @@ export function normalizeTrainingReceipt(
   const source = readSource(input.source);
   const dataset = readDataset(input.dataset);
   const training = readTraining(input.training);
-  const limitations = Array.isArray(input.limitations)
-    ? input.limitations.filter(
-        (limitation): limitation is string => typeof limitation === "string",
-      )
-    : null;
+  const limitations =
+    Array.isArray(input.limitations) &&
+    input.limitations.every(
+      (limitation): limitation is string => typeof limitation === "string",
+    )
+      ? input.limitations
+      : null;
   if (
     generatedAt === null ||
     source === null ||
     dataset === null ||
     training === null ||
-    limitations === null ||
-    limitations.length !== (input.limitations as unknown[]).length
+    limitations === null
   ) {
     return null;
   }

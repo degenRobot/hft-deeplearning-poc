@@ -52,27 +52,18 @@ describe("training receipt", () => {
   });
 
   it("rejects malformed or incomplete payloads", () => {
-    expect(
-      normalizeTrainingReceipt({ ...receipt, schema_version: 2 }),
-    ).toBeNull();
-    expect(
-      normalizeTrainingReceipt({
+    const malformed = [
+      { ...receipt, schema_version: 2 },
+      {
         ...receipt,
         training: { ...receipt.training, validation_loss: "unknown" },
-      }),
-    ).toBeNull();
-    expect(
-      normalizeTrainingReceipt({
-        ...receipt,
-        limitations: ["ok", { hidden: "value" }],
-      }),
-    ).toBeNull();
-    expect(
-      normalizeTrainingReceipt({
-        ...receipt,
-        source: { ...receipt.source, url: "javascript:alert(1)" },
-      }),
-    ).toBeNull();
+      },
+      { ...receipt, limitations: ["ok", { hidden: "value" }] },
+      { ...receipt, source: { ...receipt.source, url: "javascript:alert(1)" } },
+    ];
+    malformed.forEach((payload) =>
+      expect(normalizeTrainingReceipt(payload)).toBeNull(),
+    );
   });
 });
 

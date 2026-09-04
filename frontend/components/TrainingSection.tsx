@@ -118,12 +118,8 @@ export function TrainingSection() {
         index="05"
         eyebrow="training example"
         title="From public ticks to a tiny model"
-      >
-        <span>
-          A short, inspectable path from Binance events to a higher-level gate.
-          It is a wiring demo, not a trading claim.
-        </span>
-      </SectionTitle>
+        description="A short, inspectable path from Binance events to a higher-level gate. It is a wiring demo, not a trading claim."
+      />
       <div className="training-pipeline" aria-label="Training pipeline">
         {steps.map(([number, title, text]) => (
           <article className="training-step" key={number}>
