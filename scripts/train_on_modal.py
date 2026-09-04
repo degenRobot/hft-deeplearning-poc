@@ -19,7 +19,7 @@ from typing import Any
 
 INPUT = Path("data/binance-btcusdt-sample.jsonl")
 MODEL = Path("models/gate-binance-demo.npz")
-CAPS = {"cpu": 2, "memory_mib": 2048, "timeout_seconds": 300, "retries": 0}
+CAPS = {"cpu": 2, "memory": 2048, "timeout": 300, "retries": 0}
 LIMITATIONS = [
     "This is a CPU-only reproducibility smoke, not a performance benchmark or trading signal.",
     "Only caller-provided bytes from a tracked public repository file are sent to Modal.",
@@ -166,7 +166,7 @@ def run_remote(request: Mapping[str, Any]) -> dict[str, Any]:
         .add_local_dir(request["root"] / "src", remote_path="/repo/src")
     )
     app = modal.App("market-gate-parity-smoke")
-    remote = app.function(image=image, cpu=2, memory=2048, timeout=300, retries=0)(_train_remote)
+    remote = app.function(image=image, **CAPS)(_train_remote)
     with app.run():
         return remote.remote(
             request["input_path"].read_bytes(),

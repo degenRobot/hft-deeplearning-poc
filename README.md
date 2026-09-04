@@ -79,39 +79,16 @@ The committed sample and receipt let the UI work without making a fresh network 
 `data/README.md` for provenance. The companion `notebooks/gate_training.ipynb` remains a smaller
 synthetic walkthrough of the same model shape and Torch-free export.
 
-The labels are deliberately simple one-second proxies for the three live experts; the live flow
-and reversion experts keep longer rolling state. The short run proves only that the data-to-model
-plumbing works. It is not a backtest or evidence of generalization, trading performance, or
-profitability.
-
-### Optional Modal parity plan
-
-Modal is optional; local CPU remains the default. Inspect the safe local plan with:
-
-```sh
-make modal-plan
-```
-
-That dry-run prints the source and model hashes plus the training config, and contacts no remote
-compute. A real smoke run requires the explicit `--run` flag:
-
-```sh
-uv run --with modal==1.5.2 python scripts/train_on_modal.py --run
-```
-
-Check current Modal credits and expected spend before starting it. The committed receipt is from
-local CPU, and no remote Modal smoke run has been completed here.
+The labels are one-second proxies; the live flow and reversion experts keep longer rolling state.
+This proves the plumbing, not generalization, trading performance, or profitability. For optional
+cloud parity, `make modal-plan` prints a no-contact plan. After checking the credit balance and
+spend, add `--run` to that command's script invocation. No Modal run has been completed here.
 
 ## Change the inputs
 
-Defaults live in `configs/demo.toml`. The dashboard sends the same safe fields to the backend at
-runtime. Useful first comparisons are:
-
-- `gate_mode = "uniform"` to remove the learned gate.
-- `gate_mode = "static"` for a fixed `50/35/15` mix.
-- `higher_level_influence = 0` to make the higher-level gate inert.
-- `flow_window_trades = 16` to make the flow expert react to a shorter recent window.
-- `source = "binance"` to consume public `bookTicker` and `aggTrade` streams.
+Defaults live in `configs/demo.toml`, and the dashboard edits the same safe fields. Useful first
+comparisons are uniform or static gate mode, zero higher-level influence, a shorter flow window,
+and the public Binance source.
 
 Runtime changes are intentionally in-memory. **Reset simulation** starts a fresh run with the
 applied runtime config; restarting the backend restores the TOML defaults. Feed-generation and

@@ -66,7 +66,7 @@ def test_plan_is_redacted_and_binds_hashes_config_and_caps(tmp_path: Path) -> No
     assert display["expected_model"]["path"] == "models/gate.npz"
     assert request["config_sha256"] != changed["config_sha256"]
     assert request["config_sha256"] != changed_sample["config_sha256"]
-    assert display["remote"] == {"cpu": 2, "memory_mib": 2048, "timeout_seconds": 300, "retries": 0}
+    assert display["remote"] == {"cpu": 2, "memory": 2048, "timeout": 300, "retries": 0}
 
 
 def test_dry_run_never_calls_remote_or_writes(

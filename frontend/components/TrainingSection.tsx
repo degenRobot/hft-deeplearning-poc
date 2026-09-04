@@ -30,9 +30,9 @@ function ReceiptMetrics({ receipt }: { receipt: TrainingReceipt }) {
       "total public book + trade events",
     ],
     [
-      "Examples",
+      "Training examples",
       formatTrainingCount(dataset.train_examples),
-      `${formatTrainingCount(dataset.validation_examples)} validation · train examples above`,
+      `${formatTrainingCount(dataset.validation_examples)} held-out validation`,
     ],
     [
       "Loss / model",

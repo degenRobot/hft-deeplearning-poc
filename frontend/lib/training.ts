@@ -36,7 +36,7 @@ const isFiniteNumber = (value: unknown): value is number =>
 
 const asTyped = <T>(value: UnknownRecord) => value as unknown as T;
 
-/** Normalize the public receipt so rendering never trusts arbitrary API data. */
+/** Check the local API fields used for headline metrics before rendering. */
 export function normalizeTrainingReceipt(
   input: unknown,
 ): TrainingReceipt | null {
