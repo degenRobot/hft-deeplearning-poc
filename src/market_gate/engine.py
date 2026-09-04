@@ -36,6 +36,7 @@ class MarketEngine:
         self.run_id = "unstarted"
         self.paper = PaperLedger()
         self.prior_quote: dict[str, float] | None = None
+        self.prior_quote_created_ms = 0
         self.weights = uniform_weights()
         self.last_gate_ts_ms = -config.gate_interval_ms
         self.gate_revision = 0
@@ -109,7 +110,7 @@ class MarketEngine:
         else:
             self.last_trade = event.price
             prior_mid = (self.bid + self.ask) / 2 if self.bid and self.ask else event.price
-            if self.prior_quote is not None:
+            if self.prior_quote is not None and event.event_ts_ms >= self.prior_quote_created_ms:
                 self.paper.observe_trade(
                     event, self.prior_quote, prior_mid, self.config.max_inventory
                 )
@@ -165,6 +166,7 @@ class MarketEngine:
         )
         self.ledger.append(self.decision.as_dict())
         self.prior_quote = outcome.quote
+        self.prior_quote_created_ms = arrival_ts_ms
         return self.decision
 
     def _book_age(self, now_ms: int) -> int:

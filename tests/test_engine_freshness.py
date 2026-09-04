@@ -109,3 +109,13 @@ def test_invalid_book_cancels_quote_until_valid_book_recovers() -> None:
     assert market.snapshot(now_ms=1_002)["health"]["ready"] is False
     market.process(book(1_003))
     assert market.snapshot(now_ms=1_003)["quote"] is not None
+
+
+def test_trade_before_quote_creation_cannot_fill_even_within_stale_threshold() -> None:
+    market = engine()
+    delayed = replace(trade(999), venue="binance", receive_ts_ms=1_001)
+    market.process(delayed)
+    assert market.paper.inventory == 0
+    assert market.paper.cash == 0
+    market.process(replace(trade(1_002), venue="binance", receive_ts_ms=1_003))
+    assert market.paper.inventory == pytest.approx(-0.1)
