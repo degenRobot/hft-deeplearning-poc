@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "generated_at": "2026-09-04T21:26:20.486475Z",
+  "generated_at": "2026-09-04T21:31:03.919099Z",
   "source": {
     "name": "Synthetic replay fixture",
     "symbol": "BTCUSDT",
@@ -60,7 +60,7 @@
     "model_path": "models/gate-parity-v2.npz"
   },
   "limitations": [
-    "A short public sample is a teaching artifact, not a trading signal or backtest.",
+    "A short sample is a teaching artifact, not a trading signal or backtest.",
     "The labels use one-second proxies for the live microprice, flow, and reversion experts; flow and reversion do not reproduce the live engine's rolling state.",
     "The exported model is an offline example and is not the gate used by the live demo.",
     "Chronological splitting keeps validation later than training; it does not establish robustness.",
@@ -93,14 +93,14 @@
     "input_sha256": "6fcfe8e85a2e5c9efffab87c0ba6e01a41bd4432972624b77fd5cb6a2b52dd1e",
     "model_sha256": "315126e4f88d0c8baf379bff9a01154f88d6911a87dbea4b2e40bb4e582a5635",
     "source_files": {
-      "training.py": "97a319bc51525303096940b1099bdfd056502fad72adb439d2dda73a169f3678",
+      "training.py": "25320cd5d69830920b4067d09154100ce7eef74eb7e994b4b8ebaf7df6cf643c",
       "evaluation.py": "291a716246662a992fefb043f736a3dd1c9b6f8155b75e1767459a2544223ea0",
       "features.py": "10dfcd44bc995415b0e791ffdb803438044aade2228be5c2ffb443fd34f2d21f",
       "experts.py": "7c4d936977c8bb62e96cd59d1829131125123bf8ec881c8958c608e0974eea83",
       "contracts.py": "9e7128f5b8863b3c47900d570c004055938927a44d51ee736ca7f5f911703e03",
       "gate.py": "5dc28d4e5b657545ce2a2ab4302394885f0609dd77b4ff2244dc790ebb0aeb17"
     },
-    "source_sha256": "c685b8c1e1c16a69d13369d9920eb4551285f48e1ee03b07bacdfc31691653e5",
+    "source_sha256": "b1b08b8daa502913e8fbaf85974cb2fb53d1df7bd5efcb4567199271a1abfc7f",
     "config": {
       "epochs": 20,
       "seed": 7,
@@ -132,8 +132,8 @@
       "anchor_ts_ms": 1700000000000,
       "book_interval_ms": 1
     },
-    "source_commit": "5584ba0826add246809b9b11153a6355ccb11583",
-    "local_fits": 2,
+    "source_commit": "1655cedccd69054796082bab2224e778b669312a",
+    "local_fits": 3,
     "strict_npz_hash_match": true,
     "model_sha256": "315126e4f88d0c8baf379bff9a01154f88d6911a87dbea4b2e40bb4e582a5635",
     "loss_metrics_match": true,
@@ -147,6 +147,7 @@
       "torch_interop_threads": 12,
       "deterministic_algorithms": false
     },
-    "remote": "not_run"
+    "remote": "not_run",
+    "verification_note": "Two local fits matched at5584ba0. A third fit in a fresh Python process after the source-neutral receipt-copy fix matched the same NPZ hash and all evaluation values. This latest receipt records the third fit."
   }
 }
