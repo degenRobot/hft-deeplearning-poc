@@ -1,10 +1,3 @@
-"""Small, reproducible helpers for the recorded-data gate training demo.
-
-The live application never calls this module. It is deliberately a separate,
-offline path: record a short public sample, train locally, then let the API
-serve the resulting receipt.
-"""
-
 from __future__ import annotations
 
 import json
@@ -35,8 +28,6 @@ EXPERT_NAMES = EXPERT_IDS
 
 @dataclass(frozen=True)
 class TrainingExample:
-    """One causal feature window and labels that start after the window ends."""
-
     start_frame: int
     target_frame: int
     features: np.ndarray
@@ -44,7 +35,6 @@ class TrainingExample:
 
 
 def event_to_record(event: BookEvent | TradeEvent) -> dict[str, object]:
-    """Return a stable, envelope-free JSONL record for a public market event."""
     common: dict[str, object] = {
         "event_ts_ms": event.event_ts_ms,
         "kind": "book" if isinstance(event, BookEvent) else "trade",
@@ -75,14 +65,12 @@ def event_to_record(event: BookEvent | TradeEvent) -> dict[str, object]:
 
 
 def should_keep_book(event_ts_ms: int, last_kept_ts_ms: int | None, interval_ms: int) -> bool:
-    """Downsample book updates while preserving the first update and all trades."""
     return last_kept_ts_ms is None or event_ts_ms - last_kept_ts_ms >= interval_ms
 
 
 def write_recording(
     path: Path, events: list[BookEvent | TradeEvent], book_interval_ms: int
 ) -> dict[str, int]:
-    """Write normalized public events, downsampling only book updates."""
     path.parent.mkdir(parents=True, exist_ok=True)
     counts = {"book": 0, "trade": 0, "total": 0}
     last_book_ts_ms: int | None = None
@@ -102,7 +90,6 @@ def write_recording(
 
 
 def load_recording(path: Path) -> list[BookEvent | TradeEvent]:
-    """Read a normalized JSONL recording and reject malformed public records."""
     if not path.is_file():
         raise ValueError(f"recording does not exist: {path}")
 
@@ -153,7 +140,6 @@ def load_recording(path: Path) -> list[BookEvent | TradeEvent]:
 
 
 def book_metrics(book: BookEvent) -> tuple[float, float, float, float]:
-    """Calculate the four quote-derived inputs used when a second is closed."""
     mid = (book.bid_price + book.ask_price) / 2
     spread_bps = (book.ask_price - book.bid_price) / mid * 10_000 if mid else 0.0
     size_total = book.bid_size + book.ask_size
@@ -167,7 +153,6 @@ def book_metrics(book: BookEvent) -> tuple[float, float, float, float]:
 
 
 def build_frames(events: list[BookEvent | TradeEvent]) -> tuple[np.ndarray, np.ndarray]:
-    """Build one-second frames using only observations available at each close."""
     builder = FeatureBuilder()
     last_book: BookEvent | None = None
     values: list[tuple[float, ...]] = []
@@ -195,7 +180,6 @@ def build_frames(events: list[BookEvent | TradeEvent]) -> tuple[np.ndarray, np.n
 def build_examples(
     frames: np.ndarray, mids: np.ndarray, lookback_frames: int, horizon_frames: int
 ) -> list[TrainingExample]:
-    """Create causal windows; each utility uses a future mid after the input window."""
     if lookback_frames < 1 or horizon_frames < 1:
         raise ValueError("lookback_frames and horizon_frames must be positive")
     if len(frames) != len(mids):
@@ -207,8 +191,6 @@ def build_examples(
         target = end + horizon_frames - 1
         future_return_bps = float((mids[target] / mids[end - 1] - 1.0) * 10_000)
         last = frames[end - 1]
-        # Approximate the three runtime experts from one closed feature frame,
-        # then reward a proxy score only when it agrees with the later move.
         proxy_scores = np.asarray(
             [
                 microprice_pressure(1.0, float(last[4]), 1.0 + float(last[5])),
@@ -230,14 +212,10 @@ def build_examples(
 def chronological_split(
     examples: list[TrainingExample], frame_count: int, validation_fraction: float = 0.2
 ) -> tuple[list[TrainingExample], list[TrainingExample]]:
-    """Split on a frame boundary, leaving an embargo so the two sets never overlap."""
     if not 0 < validation_fraction < 1:
         raise ValueError("validation_fraction must be between zero and one")
     if any(example.target_frame >= frame_count for example in examples):
         raise ValueError("example target is outside the available frames")
-    # Choose the boundary from viable input starts, then embargo every window
-    # that would touch both sides. A frame-count split alone can leave no room
-    # for a complete validation window in a deliberately short recording.
     last_start = max(example.start_frame for example in examples)
     boundary = int((last_start + 1) * (1 - validation_fraction))
     train = [example for example in examples if example.target_frame < boundary]
@@ -257,7 +235,6 @@ def _array(examples: list[TrainingExample]) -> tuple[np.ndarray, np.ndarray]:
 
 
 def _save_gate_model(model: object, destination: Path) -> int:
-    """Export the small Torch MLP to the portable NPZ format used by the runtime."""
     from torch import nn
 
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -300,7 +277,6 @@ def train_recording(
     lookback_frames: int = 30,
     horizon_frames: int = 5,
 ) -> dict[str, object]:
-    """Train the illustrative gate from a recording and write a transparent receipt."""
     if epochs < 1 or learning_rate <= 0:
         raise ValueError("epochs and learning_rate must be positive")
     try:

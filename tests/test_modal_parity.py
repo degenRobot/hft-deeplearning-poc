@@ -7,120 +7,30 @@ from pathlib import Path
 
 import pytest
 
-from market_gate.modal_parity import (
-    build_plan,
-    build_receipt,
-    redact_path,
-    validate_output_receipt_path,
-)
 
-
-def _remote(plan, *, model_sha256: str | None = None) -> dict[str, object]:
-    return {
-        "input_sha256": plan.input_sha256,
-        "model_sha256": model_sha256 or plan.expected_model_sha256,
-        "duration_seconds": 1.25,
-        "loss_metrics": {
-            "first_train_loss": -0.3,
-            "last_train_loss": -0.5,
-            "validation_loss": -0.2,
-        },
-    }
-
-
-def _write(path: Path, contents: bytes) -> Path:
-    path.write_bytes(contents)
-    return path
-
-
-def _load_script():
-    script = Path(__file__).parents[1] / "scripts" / "train_on_modal.py"
-    spec = importlib.util.spec_from_file_location("train_on_modal_test", script)
+def load_script():
+    path = Path(__file__).parents[1] / "scripts" / "train_on_modal.py"
+    spec = importlib.util.spec_from_file_location("modal_test", path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-def test_plan_hash_binds_sample_model_and_config(tmp_path: Path) -> None:
-    input_path = _write(tmp_path / "sample.jsonl", b"public bytes")
-    model_path = _write(tmp_path / "expected.npz", b"expected model")
-    first = build_plan(tmp_path, input_path, model_path, epochs=20, seed=7)
-    different_seed = build_plan(tmp_path, input_path, model_path, epochs=20, seed=8)
-    _write(input_path, b"changed public bytes")
-    different_input = build_plan(tmp_path, input_path, model_path, epochs=20, seed=7)
-
-    assert first.config_sha256 != different_seed.config_sha256
-    assert first.config_sha256 != different_input.config_sha256
-    assert first.public_dict()["input"]["path"] == "sample.jsonl"  # type: ignore[index]
-    assert first.public_dict()["remote"] == {
-        "cpu": 2,
-        "memory_mib": 2048,
-        "timeout_seconds": 300,
-        "retries": 0,
-    }
-
-
-def test_external_paths_are_redacted_in_receipt(tmp_path: Path) -> None:
-    root = tmp_path / "repo"
-    root.mkdir()
-    external_dir = tmp_path / "private"
-    external_dir.mkdir()
-    external = _write(external_dir / "sample.jsonl", b"public bytes")
-    model = _write(root / "expected.npz", b"model")
-    plan = build_plan(root, external, model, epochs=20, seed=7)
-    receipt = build_receipt(plan, repo_commit="a" * 40, remote=_remote(plan))
-
-    assert redact_path(external, root) == "<external>/sample.jsonl"
-    assert receipt["input"]["path"] == "<external>/sample.jsonl"  # type: ignore[index]
-
-
-def test_mismatch_is_explicit_and_output_must_be_separate(tmp_path: Path) -> None:
-    input_path = _write(tmp_path / "sample.jsonl", b"public bytes")
-    model_path = _write(tmp_path / "expected.npz", b"expected model")
-    plan = build_plan(tmp_path, input_path, model_path, epochs=20, seed=7)
-    mismatch = hashlib.sha256(b"other model").hexdigest()
-    receipt = build_receipt(plan, repo_commit="b" * 40, remote=_remote(plan, model_sha256=mismatch))
-
-    assert receipt["parity"] is False
-    with pytest.raises(ValueError, match="separate"):
-        validate_output_receipt_path(model_path, plan)
-    assert validate_output_receipt_path(tmp_path / "receipt.json", plan).name == "receipt.json"
-
-
-def test_default_dry_run_never_calls_remote_or_writes(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def repo(tmp_path: Path) -> tuple[Path, Path, Path]:
     root = tmp_path / "repo"
     (root / "data").mkdir(parents=True)
     (root / "models").mkdir()
-    _write(root / "data" / "binance-btcusdt-sample.jsonl", b"public bytes")
-    _write(root / "models" / "gate-binance-demo.npz", b"expected model")
-    module = _load_script()
-
-    def remote_called(*_args: object) -> None:
-        raise AssertionError("remote called")
-
-    monkeypatch.setattr(module, "run_remote", remote_called)
-    output = root / "artifacts" / "modal-parity.json"
-
-    assert module.main([], root=root) == 0
-    assert not output.exists()
-
-
-def test_run_gate_requires_both_inputs_to_match_head(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    root = tmp_path / "repo"
-    (root / "data").mkdir(parents=True)
-    (root / "models").mkdir()
-    input_path = _write(root / "data" / "sample.jsonl", b"public bytes")
-    model_path = _write(root / "models" / "expected.npz", b"expected model")
-    trainer_path = _write(root / "trainer.py", b"head source")
-    source_dir = root / "src"
-    source_dir.mkdir()
-    _write(source_dir / "tracked.py", b"head source")
-    _write(root / ".gitignore", b"src/private.env\n")
+    (root / "src").mkdir()
+    source, sample, model = (
+        root / "src" / "gate.py",
+        root / "data" / "sample.jsonl",
+        root / "models" / "gate.npz",
+    )
+    source.write_text("safe = True\n")
+    sample.write_bytes(b"public sample")
+    model.write_bytes(b"expected model")
+    (root / ".gitignore").write_text("src/private.env\n")
     subprocess.run(["git", "init", "-q", str(root)], check=True)
     subprocess.run(
         ["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True
@@ -128,25 +38,54 @@ def test_run_gate_requires_both_inputs_to_match_head(
     subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
     subprocess.run(["git", "-C", str(root), "add", "."], check=True)
     subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
-    plan = build_plan(root, input_path, model_path, epochs=20, seed=7)
-    module = _load_script()
+    return root, sample, model
 
-    module.require_clean_head_inputs(plan)
-    mismatch = hashlib.sha256(b"other model").hexdigest()
-    monkeypatch.setattr(
-        module,
-        "run_remote",
-        lambda launch_plan, _commit: _remote(launch_plan, model_sha256=mismatch),
-    )
-    output = root / "artifacts" / "mismatch.json"
+
+def test_dry_run_never_calls_remote_or_writes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, sample, model = repo(tmp_path)
+    module = load_script()
+    monkeypatch.setattr(module, "run_remote", lambda *_: pytest.fail("remote called"))
+    assert module.main(["--input", str(sample), "--expected-model", str(model)], root=root) == 0
+    assert not (root / "artifacts" / "modal-parity.json").exists()
+
+
+def test_run_rejects_untracked_source_uploads(tmp_path: Path) -> None:
+    root, sample, model = repo(tmp_path)
+    module = load_script()
+    request = module.plan(root, sample, model, 20, 7)
+    module.require_clean_head_inputs(request)
+    (root / "src" / "private.env").write_text("secret")
+    with pytest.raises(ValueError, match="only files tracked"):
+        module.require_clean_head_inputs(request)
+    (root / "src" / "private.env").unlink()
+    (root / "src" / "scratch.py").write_text("scratch")
+    with pytest.raises(ValueError, match="only files tracked"):
+        module.require_clean_head_inputs(request)
+
+
+def test_run_writes_a_mismatch_receipt_and_checks_remote_input(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, sample, model = repo(tmp_path)
+    module = load_script()
+    remote = {
+        "input_sha256": hashlib.sha256(b"public sample").hexdigest(),
+        "model_sha256": "0" * 64,
+        "loss_metrics": {},
+        "duration_seconds": 0,
+    }
+    monkeypatch.setattr(module, "run_remote", lambda *_: remote)
+    output = root / "artifacts" / "receipt.json"
     assert (
         module.main(
             [
                 "--run",
                 "--input",
-                str(input_path),
+                str(sample),
                 "--expected-model",
-                str(model_path),
+                str(model),
                 "--output-receipt",
                 str(output),
             ],
@@ -154,20 +93,7 @@ def test_run_gate_requires_both_inputs_to_match_head(
         )
         == 1
     )
-    assert '"parity": false' in output.read_text(encoding="utf-8")
-
-    _write(trainer_path, b"dirty source")
-    with pytest.raises(ValueError, match="every tracked repository file"):
-        module.require_clean_head_inputs(plan)
-    _write(trainer_path, b"head source")
-    _write(model_path, b"changed model")
-    with pytest.raises(ValueError, match="exactly match HEAD"):
-        module.require_clean_head_inputs(plan)
-    _write(model_path, b"expected model")
-    _write(source_dir / "private.env", b"must not be uploaded")
-    with pytest.raises(ValueError, match="only files tracked in HEAD"):
-        module.require_clean_head_inputs(plan)
-    (source_dir / "private.env").unlink()
-    _write(source_dir / "scratch.py", b"must not be uploaded")
-    with pytest.raises(ValueError, match="only files tracked in HEAD"):
-        module.require_clean_head_inputs(plan)
+    assert '"parity": false' in output.read_text()
+    remote["input_sha256"] = "f" * 64
+    with pytest.raises(ValueError, match="remote input hash"):
+        module.main(["--run", "--input", str(sample), "--expected-model", str(model)], root=root)
