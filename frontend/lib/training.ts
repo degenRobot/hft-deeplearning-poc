@@ -59,7 +59,14 @@ export function normalizeTrainingReceipt(
     training.validation_loss,
     training.parameter_count,
   ];
-  if (!headlineNumbers.every(isFiniteNumber)) return null;
+  const headlineText = [source.symbol, source.venue, ...input.limitations];
+  if (
+    !headlineNumbers.every(isFiniteNumber) ||
+    !headlineText.every((value) => typeof value === "string") ||
+    typeof source.url !== "string" ||
+    !source.url.startsWith("https://")
+  )
+    return null;
   return {
     schema_version: 1,
     source: asTyped<TrainingSource>(source),

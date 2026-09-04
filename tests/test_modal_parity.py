@@ -91,6 +91,8 @@ def test_preflight_rejects_dirty_inputs_and_source_uploads(tmp_path: Path) -> No
     root, sample, model = repo(tmp_path)
     module, request = script(), script().plan(root, sample, model, 20, 7)
     module.preflight(request)
+    module.run_remote = lambda _: pytest.fail("remote called before preflight completed")
+    launch = ["--run", "--input", str(sample), "--expected-model", str(model)]
     cases = [
         (root / "src/gate.py", "dirty", "every tracked"),
         (model, "changed", "every tracked"),
@@ -100,7 +102,7 @@ def test_preflight_rejects_dirty_inputs_and_source_uploads(tmp_path: Path) -> No
     for path, contents, message in cases:
         path.write_text(contents)
         with pytest.raises(ValueError, match=message):
-            module.preflight(request)
+            module.main(launch, root=root)
         subprocess.run(
             ["git", "-C", str(root), "checkout", "--", "src/gate.py", "models/gate.npz"],
             check=False,

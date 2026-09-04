@@ -44,6 +44,15 @@ describe("training receipt", () => {
     ["missing dataset", { ...receipt, dataset: null }],
     ["missing training", { ...receipt, training: null }],
     [
+      "object symbol",
+      { ...receipt, source: { ...receipt.source, symbol: {} } },
+    ],
+    [
+      "unsafe source URL",
+      { ...receipt, source: { ...receipt.source, url: "javascript:1" } },
+    ],
+    ["object limitation", { ...receipt, limitations: [{}] }],
+    [
       "non-finite headline metric",
       {
         ...receipt,
