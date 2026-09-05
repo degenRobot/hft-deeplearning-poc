@@ -240,7 +240,7 @@ describe("capture and terminal progress validity", () => {
       );
       expect(html).not.toContain("<progress");
       expect(html).not.toContain("Preparing…");
-      expect(html).toContain("Run ended before optimizer totals");
+      expect(html).toContain("Step totals were not recorded");
     },
   );
 });

@@ -96,9 +96,22 @@ uv run python scripts/run_training_lab.py --input data/training-public.jsonl \
   --output artifacts/my-local-training --pace 0.25
 ```
 
-The browser uses the fixed `data/training-public.jsonl` dataset and creates a new
-directory under `artifacts/training-runs/`. Selecting Modal sends that dataset and the
-chosen training options to a cloud run. The browser cannot select arbitrary files.
+The browser starts with `data/training-public.jsonl`. **Data for your next run**
+shows the selected recording's public source, event counts, time span and SHA-256.
+Choose a duration from 30 to 1,800 seconds and capture a new range starting now.
+This uses `scripts/capture_training_data.py` and the public Binance recorder; it
+cannot reconstruct historical best bid/ask data from candles or trades.
+
+Captures use immutable files under `data/training-captures/`. Only a completed
+capture with enough contiguous windows for the actual training split becomes the
+next selected dataset. Short, interrupted or failed captures leave the previous
+selection intact. Stop waits for connection shutdown or validation to finish;
+elapsed time includes this cleanup. A 900-second capture is the working example.
+A run already in progress keeps its original recording.
+
+Each training run creates a new directory under `artifacts/training-runs/`.
+Selecting Modal sends the selected dataset and chosen options to the cloud.
+The browser cannot select arbitrary files.
 One OS lock prevents concurrent local and Modal training writers. Stop signals the
 owned runner; a Modal runner also cancels its remote function call when one has started.
 Server shutdown also stops a child it owns. The UI labels completed
@@ -152,3 +165,51 @@ records the actual app/function-call IDs. Custom-width outputs are named
 `training-mlp-supervised.npz` and `training-mlp-adapted.npz`; the default 64/32 model
 keeps `gate-supervised.npz` and `gate-adapted.npz`. Runtime model promotion is a separate
 decision.
+
+## Progress and compute estimates
+
+The progress bar counts actual supervised and replay optimizer updates. It starts
+indeterminate while the dataset and cloud image are prepared, remains below 100%
+during holdout evaluation and artifact transfer, and reaches 100% only after the
+checkpoints are saved. It is a fraction of updates, not a prediction of time remaining.
+
+At the [Modal rates](https://modal.com/pricing) checked September 5, 2026, two physical
+CPU cores plus 2 GiB cost approximately $0.00184 of compute credits per minute.
+The planner lets you supply an assumed duration. During a remote run, the page
+also estimates compute from observed elapsed time after execution starts. Image
+build, startup and other charges are excluded; these numbers are neither billed
+usage nor your account balance. Larger models can take longer on the same resources.
+
+The [progress and data validation receipt](../artifacts/training-example/progress-data-experts-validation.json)
+records a real Modal run ending at 44/44 updates, plus a deliberately short public
+capture that correctly retained the existing trainable dataset.
+
+## Which experts are trained?
+
+The original three experts are rules: microprice imbalance, signed trade flow and
+mean reversion. Their parameters are not learned by the Training Lab. The larger
+network learns how to weight these three rule signals.
+
+The terminal also shows a separately trained **tiny neural expert** alongside them:
+three current rule scores → eight tanh neurons → one bounded directional score.
+Its 41 learned parameters come from chronological public-data training against a
+five-second future mid-price target. It is a shadow demonstration; its output does
+not enter the three-expert mixture or change quotes. Reproduce it with:
+
+```sh
+uv run python scripts/train_tiny_expert.py --help
+```
+
+The [model receipt](../models/tiny-expert-demo.json) records the source and dataset
+hashes, split embargo, optimizer, parameter changes and measured inference timing.
+Training preserves recording arrival order when receive timestamps tie, matching
+the live engine. Local warm NumPy inference measured 6.50 µs median and 6.75 µs p95
+across 5,000 calls; this excludes engine and networking work. The card displays its
+own observed inference time. The holdout target has zero variance and a zero
+predictor beats the trained network, so this is a training/latency example with no
+evidence of predictive value.
+
+The live heatmap adds columns from actual distinct decision events, retaining the
+latest 64. Green means buy bias, red means sell bias, and intensity shows the bounded
+signal magnitude. These are not calibrated confidence probabilities. The browser
+receives snapshots at 10 Hz and can add multiple event columns per snapshot.

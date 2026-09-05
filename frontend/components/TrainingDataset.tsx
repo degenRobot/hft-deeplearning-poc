@@ -256,6 +256,10 @@ export function TrainingDataset() {
             events ·{" "}
             {capture.bytes == null ? "—" : (capture.bytes / 1e6).toFixed(2)} MB
           </p>
+          <p className="flow-footnote">
+            Elapsed time includes connection shutdown and training-split
+            validation.
+          </p>
           {capture.error && <p role="status">{capture.error}</p>}
         </div>
       )}

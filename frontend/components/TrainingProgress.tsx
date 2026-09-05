@@ -38,7 +38,7 @@ export function TrainingProgress({ data }: { data: LiveTraining | null }) {
         {p?.total_steps
           ? `${p.completed_steps} / ${p.total_steps} optimizer updates`
           : ended
-            ? "Run ended before optimizer totals were available."
+            ? "Step totals were not recorded for this run."
             : "Progress becomes measurable when the dataset is ready."}
         {p?.elapsed_seconds != null &&
           ` · ${Math.round(p.elapsed_seconds)}s elapsed`}
