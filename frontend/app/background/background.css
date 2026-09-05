@@ -465,3 +465,234 @@
     background: var(--violet-soft);
   }
 }
+
+/* Compact architecture reference and worked example. */
+.background-clocks,
+.background-inputs,
+.background-authority,
+.background-neural-roles article,
+.background-worked-event {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--paper);
+}
+.background-clocks,
+.background-inputs,
+.background-worked-event {
+  margin: 16px 0 0;
+  padding: 20px 24px;
+}
+.background-page h3 {
+  margin: 0 0 10px;
+  font: 600 16px/1.4 var(--sans);
+}
+.background-clock-pair,
+.background-reference-grid,
+.background-neural-roles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.background-clock-pair strong {
+  color: var(--teal);
+  font: 500 12px/1.5 var(--mono);
+}
+.background-clocks p,
+.background-inputs p,
+.background-neural-roles p,
+.background-worked-event p,
+.background-worked-event figcaption {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.background-clocks .background-note {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+}
+.background-inputs summary {
+  cursor: pointer;
+  color: var(--teal);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.background-reference-grid {
+  margin-top: 20px;
+}
+.background-reference-grid dl {
+  margin: 16px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.background-reference-grid dl div + div {
+  margin-top: 10px;
+}
+.background-reference-grid dt {
+  font-weight: 600;
+}
+.background-reference-grid dd {
+  margin: 2px 0 0;
+  color: var(--muted);
+}
+.background-authority {
+  padding: 8px 20px;
+}
+.background-authority table,
+.background-worked-event table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.background-authority th,
+.background-authority td,
+.background-worked-event th,
+.background-worked-event td {
+  padding: 12px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+.background-authority thead,
+.background-worked-event thead {
+  color: var(--muted);
+  font-size: 11px;
+}
+.background-authority tbody th {
+  font-weight: 500;
+  width: 30%;
+}
+.background-authority tbody td {
+  color: var(--muted);
+}
+.background-authority tbody tr:last-child > * {
+  border-bottom: 0;
+}
+.background-neural-roles {
+  margin-top: 16px;
+  gap: 16px;
+}
+.background-neural-roles article {
+  padding: 20px 24px;
+  min-width: 0;
+}
+.background-neural-roles h3 {
+  margin: 12px 0 6px;
+  font-family: var(--mono);
+}
+.background-neural-roles strong {
+  font-size: 12px;
+  color: var(--violet);
+}
+.background-worked-event {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 16px 32px;
+}
+.background-worked-event h3 {
+  margin-top: 10px;
+}
+.background-worked-event table {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.background-worked-event th {
+  font-weight: 500;
+}
+.background-worked-event td {
+  text-align: right;
+}
+.background-worked-event tfoot > tr > * {
+  color: var(--teal);
+  border-bottom: 0;
+}
+.background-worked-event figcaption {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+.background-proof {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+.background-proof li:last-child {
+  border: 1px dashed var(--orange);
+  color: var(--orange);
+}
+.background-proof li:nth-last-child(2)::after {
+  content: "⇢";
+  color: var(--orange);
+}
+.background-demo-default {
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border-left: 2px solid var(--teal);
+  background: var(--teal-soft);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.background-demo-default strong {
+  color: var(--teal);
+  margin-right: 12px;
+}
+@media (max-width: 850px) {
+  .background-worked-event {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .background-clock-pair,
+  .background-reference-grid,
+  .background-neural-roles,
+  .background-proof {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .background-clocks,
+  .background-inputs,
+  .background-neural-roles article,
+  .background-worked-event {
+    padding: 16px;
+  }
+  .background-authority {
+    padding: 6px;
+  }
+  .background-authority th,
+  .background-authority td {
+    padding: 10px 6px;
+    font-size: 11px;
+  }
+  .background-authority tbody th {
+    width: 29%;
+  }
+  .background-worked-event th,
+  .background-worked-event td {
+    padding: 10px 4px;
+    font-size: 10px;
+  }
+  .background-proof li:nth-last-child(2)::after {
+    content: "⇣";
+  }
+}
+
+@media (min-width: 601px) and (max-width: 850px) {
+  .background-proof {
+    grid-template-columns: 1fr;
+    gap: 23px;
+  }
+  .background-proof li {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+  .background-proof li:not(:last-child)::after {
+    content: "↓";
+    left: 50%;
+    top: calc(100% + 4px);
+    transform: translateX(-50%);
+  }
+  .background-proof li:nth-last-child(2)::after {
+    content: "⇣";
+  }
+}
