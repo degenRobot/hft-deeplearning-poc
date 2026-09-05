@@ -139,7 +139,7 @@ export function GateSection({
         index="02"
         eyebrow="active runtime policy"
         title={`${modeTitle(mode)} sets the mix`}
-        description="The bundled demo model or a selected baseline sets bounded expert weights. The offline experiments below do not replace it."
+        description="The bundled demo model or a selected baseline sets bounded expert weights. Training Lab runs do not replace the live model."
       />
       <div className="split-grid">
         <article className="panel gate-panel">

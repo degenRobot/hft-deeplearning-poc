@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { SiteNav } from "./SiteNav";
+import { PageHeader } from "./PageHeader";
 import type { ConnectionStatus, FeedSource } from "../lib/types";
 
 export function ConnectionPill({ status }: { status: ConnectionStatus }) {
@@ -42,27 +41,13 @@ export function Header({
       : `${(cadenceMs / 1000).toFixed(1)} s gate`;
   return (
     <>
-      <header className="topbar">
-        <Link
-          className="brand brand-home"
-          href="/"
-          aria-label="Market Gate Lab home"
-        >
-          <span className="brand-mark">MG</span>
-          <div>
-            <h1>Live Terminal</h1>
-            <span className="brand-caption">Market Gate Lab</span>
-          </div>
-        </Link>
-        <div className="topbar-actions">
-          <SiteNav current="terminal" />
-          <ConnectionPill status={status} />
-          <span className="read-only">READ ONLY</span>
-          <button className="button ghost" onClick={onReconnect}>
-            {status === "connected" ? "Reconnect" : "Connect"}
-          </button>
-        </div>
-      </header>
+      <PageHeader title="Live Terminal" current="terminal">
+        <ConnectionPill status={status} />
+        <span className="read-only">READ ONLY</span>
+        <button className="button ghost" onClick={onReconnect}>
+          {status === "connected" ? "Reconnect" : "Connect"}
+        </button>
+      </PageHeader>
       <div
         className={`stream-banner ${status}`}
         role="status"

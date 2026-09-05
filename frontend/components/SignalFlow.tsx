@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { ContextTip } from "./ContextTip";
+import "./terminalPolish.css";
 import { ActivationNetwork } from "./ActivationNetwork";
 import { ExpertSignalHeatmap, signalDirection } from "./ExpertSignalHeatmap";
 import { CandleChart } from "./CandleChart";
@@ -274,109 +276,9 @@ export function SignalFlow({
           {motion ? "Reduce motion" : "Enable motion"}
         </button>
       </div>
-      <div className="terminal-section-label">
-        <span>MODEL CONTROL</span>
-        <span>
-          30 × 10 inputs → neural gate → expert allocation ·{" "}
-          {ready ? `${state.gate.cadence_ms} ms cadence` : "waiting"}
-        </span>
-      </div>
-      <div className="slow-lane">
-        <FeatureWindow visual={visual} neural={neural} />
-        <ActivationNetwork
-          activations={neural ? visual?.activations || null : null}
-          outputs={EXPERT_KEYS.map((id) => visual?.proposed[id] || 0)}
-          revision={active ? state.gate.revision : 0}
-          mode={active ? state.gate.mode : undefined}
-        />
-        <div className="weight-output">
-          <span className="flow-kicker">03 / WEIGHT ALLOCATION</span>
-          <h3>Control the fast experts</h3>
-          <div className="weight-head">
-            <span>Expert</span>
-            <span>Proposed</span>
-            <span>Applied</span>
-          </div>
-          {EXPERT_KEYS.map((id, i) => (
-            <div className="output-weight" key={id}>
-              <div className="weight-inline-head">
-                <span>Expert</span>
-                <span>Proposed</span>
-                <span>Applied</span>
-              </div>
-              <div className="weight-values">
-                <span style={{ color: colors[i] }}>{labels[i]}</span>
-                <span>
-                  {active ? `${(visual!.proposed[id] * 100).toFixed(1)}%` : "—"}
-                </span>
-                <b>
-                  {active
-                    ? `${(state.gate.weights[id] * 100).toFixed(1)}%`
-                    : "—"}
-                </b>
-              </div>
-              <div className="weight-track">
-                <i
-                  style={{
-                    width: `${active ? state.gate.weights[id] * 100 : 0}%`,
-                    background: colors[i],
-                  }}
-                />
-              </div>
-            </div>
-          ))}
-          <p className="flow-footnote">
-            {active
-              ? `${Math.round(visual!.influence * 100)}% policy influence + smoothing`
-              : "Waiting for model telemetry"}
-          </p>
-          <div className="refresh-track">
-            <i style={{ width: `${progress}%` }} />
-          </div>
-          <div className="refresh-label">
-            <span>Update #{active ? state.gate.revision : "—"}</span>
-            <span>
-              {active ? `${Math.round(nextRefresh)} ms to cadence` : "—"}
-            </span>
-          </div>
-          <p className="flow-footnote">
-            Applied weights feed the matching expert below. Refresh waits for
-            the next market event.
-          </p>
-        </div>
-      </div>
-      <div className="model-to-experts">
-        <span>
-          ↓ Applied allocation controls how much each fast signal contributes
-        </span>
-        <div>
-          {EXPERT_KEYS.map((id, i) => (
-            <span key={id} style={{ color: colors[i] }}>
-              {labels[i]}{" "}
-              <b>
-                {active ? `${(state.gate.weights[id] * 100).toFixed(1)}%` : "—"}
-              </b>
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <div
-        className="route-map"
-        aria-label="Market events feed fast experts and one-second feature frames. The neural gate supplies expert weights. Mixed signals pass risk checks before a synthetic quote."
-      >
-        <span>Market events</span>
-        <b>→</b>
-        <span>Fast experts</span>
-        <b>→</b>
-        <span>Weighted mix</span>
-        <b>→</b>
-        <span>Risk → quote</span>
-      </div>
-      <div className="event-transit" key={latest?.id || 0} aria-hidden="true">
-        <i />
-        <i />
-        <i />
+      <div className="market-lane">
+        <EventTape events={events} />
+        <CandleChart candles={visual?.candles || []} symbol={state.symbol} />
       </div>
       <div className="fast-lane">
         <article className="flow-card experts-card">
@@ -384,11 +286,16 @@ export function SignalFlow({
             <span className="flow-kicker">FAST PATH / EVERY EVENT</span>
             <span className="speed-badge">EVERY EVENT</span>
           </div>
-          <h2>Three hand-coded experts</h2>
+          <h2 className="heading-with-tip">
+            Three hand-coded experts{" "}
+            <ContextTip label="Can there be more experts?">
+              Three fixed rules keep this demo easy to follow. The pattern can
+              extend to N independent rules or models, each with its own inputs
+              and latency budget. This implementation supports these three.
+            </ContextTip>
+          </h2>
           <p className="flow-footnote">
-            Fixed deterministic rules produce the signals. A neural gate
-            allocates their weights when neural mode is active. The rules
-            themselves have no learned weights.
+            Fixed rules score every event. The gate sets their weights.
           </p>
           <div className="expert-cards">
             {EXPERT_KEYS.map((id, i) => {
@@ -486,7 +393,7 @@ export function SignalFlow({
                 measures the local forward pass, excluding market and network
                 latency.{" "}
                 <a
-                  href="https://github.com/degenRobot/hft-deeplearning-poc/blob/codex/live-training-lab/scripts/train_tiny_expert.py"
+                  href="https://github.com/degenRobot/hft-deeplearning-poc/blob/main/scripts/train_tiny_expert.py"
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -496,6 +403,110 @@ export function SignalFlow({
             </div>
           )}
         </article>
+      </div>
+      <div className="terminal-section-label">
+        <span>MODEL CONTROL</span>
+        <span>
+          30 × 10 inputs → neural gate → expert allocation ·{" "}
+          {ready ? `${state.gate.cadence_ms} ms cadence` : "waiting"}
+        </span>
+      </div>
+      <div className="slow-lane">
+        <FeatureWindow visual={visual} neural={neural} />
+        <ActivationNetwork
+          activations={neural ? visual?.activations || null : null}
+          outputs={EXPERT_KEYS.map((id) => visual?.proposed[id] || 0)}
+          revision={active ? state.gate.revision : 0}
+          mode={active ? state.gate.mode : undefined}
+        />
+        <div className="weight-output">
+          <span className="flow-kicker">03 / WEIGHT ALLOCATION</span>
+          <h3>Control the fast experts</h3>
+          <div className="weight-head">
+            <span>Expert</span>
+            <span>Proposed</span>
+            <span>Applied</span>
+          </div>
+          {EXPERT_KEYS.map((id, i) => (
+            <div className="output-weight" key={id}>
+              <div className="weight-inline-head">
+                <span>Expert</span>
+                <span>Proposed</span>
+                <span>Applied</span>
+              </div>
+              <div className="weight-values">
+                <span style={{ color: colors[i] }}>{labels[i]}</span>
+                <span>
+                  {active ? `${(visual!.proposed[id] * 100).toFixed(1)}%` : "—"}
+                </span>
+                <b>
+                  {active
+                    ? `${(state.gate.weights[id] * 100).toFixed(1)}%`
+                    : "—"}
+                </b>
+              </div>
+              <div className="weight-track">
+                <i
+                  style={{
+                    width: `${active ? state.gate.weights[id] * 100 : 0}%`,
+                    background: colors[i],
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+          <p className="flow-footnote">
+            {active
+              ? `${Math.round(visual!.influence * 100)}% policy influence + smoothing`
+              : "Waiting for model telemetry"}
+          </p>
+          <div className="refresh-track">
+            <i style={{ width: `${progress}%` }} />
+          </div>
+          <div className="refresh-label">
+            <span>Update #{active ? state.gate.revision : "—"}</span>
+            <span>
+              {active ? `${Math.round(nextRefresh)} ms to cadence` : "—"}
+            </span>
+          </div>
+          <p className="flow-footnote">
+            Applied weights scale each expert’s contribution. Refresh waits for
+            the next market event.
+          </p>
+        </div>
+      </div>
+      <div className="model-to-experts">
+        <span>Applied allocation → weighted signal</span>
+        <div>
+          {EXPERT_KEYS.map((id, i) => (
+            <span key={id} style={{ color: colors[i] }}>
+              {labels[i]}{" "}
+              <b>
+                {active ? `${(state.gate.weights[id] * 100).toFixed(1)}%` : "—"}
+              </b>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div
+        className="route-map"
+        aria-label="Market events feed fast experts and one-second feature frames. The neural gate supplies expert weights. Mixed signals pass risk checks before a synthetic quote."
+      >
+        <span>Market events</span>
+        <b>→</b>
+        <span>Fast experts</span>
+        <b>→</b>
+        <span>Weighted mix</span>
+        <b>→</b>
+        <span>Risk → quote</span>
+      </div>
+      <div className="event-transit" key={latest?.id || 0} aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </div>
+      <div className="signal-lane">
         <article className="flow-card mix-card">
           <span className="flow-kicker">SIGNAL / RISK</span>
           <h2>One quote signal</h2>
@@ -549,10 +560,6 @@ export function SignalFlow({
         </article>
       </div>
       <ExpertSignalHeatmap visual={visual} />
-      <div className="market-lane">
-        <CandleChart candles={visual?.candles || []} symbol={state.symbol} />
-        <EventTape events={events} />
-      </div>
       {!visual && ready ? (
         <p className="flow-empty">
           Visual telemetry unavailable. Restart the backend with the latest

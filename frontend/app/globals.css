@@ -126,21 +126,6 @@ h1 { max-width: 650px; margin: 14px 0 16px; font-size: clamp(37px, 6vw, 76px); }
 .health-panel dl div { display: flex; justify-content: space-between; gap: 8px; padding-top: 7px; color: var(--muted); font-size: 11px; }
 .health-panel dt, .health-panel dd { margin: 0; }
 .health-panel dd { color: var(--ink); font-family: var(--mono); }
-.training-status { display: flex; gap: 10px; align-items: baseline; margin-top: 13px; color: var(--muted); font-size: 12px; }
-.training-receipt { margin-top: 13px; padding: 21px; border: 1px solid var(--line); border-radius: 16px; background: var(--violet-soft); }
-.training-receipt-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.training-receipt-heading h3 { margin: 9px 0 0; font-size: 20px; }
-.training-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 20px; }
-.training-limitations { margin: 15px 0 0; color: var(--muted); font-size: 11px; }
-.experiment-summary { background: var(--teal-soft); }
-.experiment-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.experiment-samples { width: 100%; margin-top: 20px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-.experiment-samples caption { padding-bottom: 12px; text-align: left; color: var(--muted); font-size: 12px; }
-.experiment-samples th, .experiment-samples td { padding: 10px 6px; border-bottom: 1px solid var(--line); text-align: left; }
-.experiment-samples thead { font-size: 11px; color: var(--teal); }
-.experiment-samples td:last-child { color: var(--red); font-size: 12px; }
-.training-archive { margin-top: 16px; padding: 18px; border: 1px solid var(--line); border-radius: 15px; background: var(--paper); }
-.training-archive summary { cursor: pointer; font: 700 13px var(--mono); line-height: 1.5; }
 .settings { margin-top: 34px; border: 1px solid var(--line); border-radius: 15px; background: var(--paper); }
 .settings-body { border-top: 1px solid var(--line); }
 .settings summary { cursor: pointer; list-style: none; padding: 16px 19px; font: 800 13px var(--mono); }
@@ -186,7 +171,6 @@ h1 { max-width: 650px; margin: 14px 0 16px; font-size: clamp(37px, 6vw, 76px); }
   .section-title { grid-template-columns: 1fr; gap: 10px; }
   .metric-grid { grid-template-columns: repeat(2, 1fr); }
   .split-grid, .lower-grid { grid-template-columns: 1fr 1fr; }
-  .training-metrics { grid-template-columns: repeat(2, 1fr); }
   .gate-panel { grid-row: span 2; }
   .quote-panel { min-height: 157px; }
   .settings-grid { grid-template-columns: repeat(2, 1fr); }
@@ -202,7 +186,7 @@ h1 { max-width: 650px; margin: 14px 0 16px; font-size: clamp(37px, 6vw, 76px); }
   .intro p { font-size: 15px; }
   .stream-banner { align-items: flex-start; flex-wrap: wrap; }
   .stream-context, .stream-endpoint { width: 100%; margin-left: 28px; }
-  .metric-grid, .split-grid, .expert-grid, .lower-grid, .settings-grid, .training-metrics { grid-template-columns: 1fr; }
+  .metric-grid, .split-grid, .expert-grid, .lower-grid, .settings-grid { grid-template-columns: 1fr; }
   .gate-panel { grid-row: auto; }
   .section-title h2 { font-size: 29px; }
   .footer { display: block; }
@@ -226,7 +210,7 @@ h1 { max-width: 650px; margin: 14px 0 16px; font-size: clamp(37px, 6vw, 76px); }
 .stream-banner {border-radius:4px;margin-bottom:8px;min-height:28px;padding:6px 10px;font:10px var(--mono);}
 .stream-icon {width:13px;height:13px;}.stream-context,.stream-endpoint {font-size:10px;}
 .settings {margin:0 0 10px;border-radius:4px;}.settings summary {padding:8px 12px;font-size:11px;}.settings summary span {font-size:10px;}
-.panel,.expert-card,.quote-panel,.metric,.training-receipt,.training-archive,.preset,.settings input,.settings select {border-radius:5px;}
+.panel,.expert-card,.quote-panel,.metric,.preset,.settings input,.settings select {border-radius:5px;}
 .signal-lab {--flow-bg:var(--bg);--flow-panel:var(--paper);--flow-line:var(--line);--flow-text:var(--ink);--flow-muted:var(--muted);color:var(--flow-text);}
 .flow-toolbar,.flow-toolbar>div,.flow-card-heading {display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .flow-toolbar {background:var(--paper);border:1px solid var(--line);border-top:2px solid var(--teal);padding:10px 12px;font:11px var(--mono);border-radius:4px 4px 0 0;}
@@ -294,3 +278,8 @@ h1 { max-width: 650px; margin: 14px 0 16px; font-size: clamp(37px, 6vw, 76px); }
 @media(max-width:1100px){.training-options {grid-template-columns:repeat(4,minmax(0,1fr));}.training-options>label:nth-child(-n+2) {grid-column:span 2;}}
 @media(max-width:700px){.training-setup {padding:16px;}.training-setup-heading {display:block;}.training-setup-caption {display:block;margin-top:10px;}.training-options {grid-template-columns:repeat(2,minmax(0,1fr));}.training-options>label:nth-child(-n+2) {grid-column:auto;}.training-launch {align-items:flex-start;flex-direction:column;gap:12px;}.training-credentials .training-fields {grid-template-columns:1fr;}.training-modal-setup {padding:14px;}.training-model-summary {font-size:10px;}.training-modal-title {flex-wrap:wrap;gap:5px;}.training-neurons {gap:35px;}}
 .training-setup .sr-only {position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
+
+:where(button, a, input, select, summary):focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
