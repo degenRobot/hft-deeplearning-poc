@@ -56,7 +56,7 @@ it("distinguishes fully occupied from overloaded and updates capped chart bars",
   });
   const status = text(root.findByProps({ role: "status" }));
   expect(status).toContain("500% of the interval");
-  expect(status).toContain("cannot keep this cadence");
+  expect(status).toContain("each result takes longer than the update interval");
   expect(status).toContain("100 updates / second");
   const hundredMs = root.findAllByType("li")[2];
   expect(text(hundredMs)).toContain("10%");
@@ -65,6 +65,30 @@ it("distinguishes fully occupied from overloaded and updates capped chart bars",
       .findAllByType("span")
       .some((node) => node.props.style?.width === "10%"),
   ).toBe(true);
+});
+
+it("adds ideal worker throughput without inventing GPU speedups or hiding late results", async () => {
+  const root = renderer!.root;
+  await act(async () => {
+    root
+      .findByProps({ id: "compute-hardware" })
+      .props.onChange({ target: { value: "GPU" } });
+    root
+      .findByProps({ id: "inference-workers" })
+      .props.onChange({ target: { value: "4" } });
+    root
+      .findByProps({ id: "controller-interval" })
+      .props.onChange({ target: { value: "1" } });
+  });
+  expect(root.findByProps({ id: "inference-time" }).props.value).toBe(2);
+  const status = text(root.findByProps({ role: "status" }));
+  expect(status).toContain("200% of the interval");
+  expect(status).toContain("Over latency budget");
+  expect(status).toContain("4 GPU workers");
+  expect(status).toContain("2,000 predictions / second");
+  expect(status).toContain("Capacity fits this request rate");
+  expect(status).toContain("each result still takes 2 ms");
+  expect(text(root.findAllByType("li")[0])).toContain("200%over budget");
 });
 
 it("keeps small nonzero duty cycles visible at the slider minimum", async () => {
