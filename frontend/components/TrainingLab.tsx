@@ -404,21 +404,7 @@ export function TrainingLab() {
         </Link>
         <SiteNav current="training" />
       </header>
-      <section
-        className="training-workspace"
-        aria-labelledby="training-workspace-title"
-      >
-        <div className="training-workspace-heading">
-          <div>
-            <span className="flow-kicker">
-              EXPERIMENT / OBSERVE REAL WEIGHT UPDATES
-            </span>
-            <h2 id="training-workspace-title">Choose how to learn</h2>
-          </div>
-          <Link className="training-background-link" href="/background">
-            How the model works ↗
-          </Link>
-        </div>
+      <section className="training-workspace" aria-label="Training mode">
         <nav className="training-view-tabs" aria-label="Training view">
           <button aria-pressed={!continuous} onClick={() => setView("manual")}>
             <strong>Train on history</strong>
@@ -429,20 +415,6 @@ export function TrainingLab() {
             <span>Watch the terminal model adapt to incoming data.</span>
           </button>
         </nav>
-        {continuous ? (
-          <LiveLearningPanel learning={learning} lab />
-        ) : (
-          <div className="training-setup-grid">
-            <TrainingDataset />
-            <TrainingControls
-              data={data}
-              loading={loading}
-              pending={pending}
-              start={start}
-              stop={stop}
-            />
-          </div>
-        )}
       </section>
       <section
         className="training-results"
@@ -489,25 +461,6 @@ export function TrainingLab() {
             </time>
           )}
         </div>
-        {!continuous && <TrainingProgress data={data} />}
-        {historical && (
-          <aside
-            className="training-mode-banner"
-            aria-label="Historical training limitations"
-          >
-            <strong>Historical candle proxy training</strong>
-            <p>
-              1s candles → 30s input → five-second close-price move. Four book
-              features unavailable; not compatible with the live terminal.
-            </p>
-            <details>
-              <summary>Data assumptions</summary>
-              {data?.dataset?.limitations?.map((limitation, index) => (
-                <p key={index}>{limitation}</p>
-              ))}
-            </details>
-          </aside>
-        )}
         {data?.error && (
           <p className="training-run-error" role="alert">
             Run failed: {data.error}
@@ -631,6 +584,25 @@ export function TrainingLab() {
             </div>
           </article>
         </div>
+        {!continuous && <TrainingProgress data={data} />}
+        {historical && (
+          <aside
+            className="training-mode-banner"
+            aria-label="Historical training limitations"
+          >
+            <strong>Historical candle proxy training</strong>
+            <p>
+              1s candles → 30s input → five-second close-price move. Four book
+              features unavailable; not compatible with the live terminal.
+            </p>
+            <details>
+              <summary>Data assumptions</summary>
+              {data?.dataset?.limitations?.map((limitation, index) => (
+                <p key={index}>{limitation}</p>
+              ))}
+            </details>
+          </aside>
+        )}
         {!continuous && (
           <details className="training-evaluation-details">
             <summary>Dataset split &amp; holdout comparison</summary>
@@ -641,6 +613,32 @@ export function TrainingLab() {
           </details>
         )}
       </section>
+      <details className="training-settings">
+        <summary>
+          <strong>Training Settings</strong>
+          <span>
+            {continuous
+              ? "Live learning controls"
+              : "Data preparation & run configuration"}
+          </span>
+        </summary>
+        <div className="training-settings-body">
+          {continuous ? (
+            <LiveLearningPanel learning={learning} lab />
+          ) : (
+            <div className="training-setup-grid">
+              <TrainingDataset />
+              <TrainingControls
+                data={data}
+                loading={loading}
+                pending={pending}
+                start={start}
+                stop={stop}
+              />
+            </div>
+          )}
+        </div>
+      </details>
       <details className="flow-card transfer-note">
         <summary>How does transfer learning fit?</summary>
         <div className="learning-cycle">

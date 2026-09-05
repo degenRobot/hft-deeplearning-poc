@@ -1,0 +1,95 @@
+.shell > .topbar {
+  position: relative;
+  isolation: isolate;
+  min-height: 108px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.shell > .topbar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg, #0d111655, #0d111600),
+    url("/images/honse.jpg") center 60% / cover;
+  opacity: 0.2;
+  pointer-events: none;
+}
+.training-lab .training-workspace {
+  margin-top: 0;
+}
+.training-lab .training-view-tabs {
+  margin: 0 0 18px;
+}
+.training-lab .training-results {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.training-settings {
+  margin: 24px 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+.training-settings > summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding: 18px 20px;
+  list-style: none;
+  cursor: pointer;
+}
+.training-settings > summary::-webkit-details-marker {
+  display: none;
+}
+.training-settings > summary strong {
+  color: var(--ink);
+  font: 600 15px/1.5 var(--sans);
+}
+.training-settings > summary span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.training-settings > summary::after {
+  content: "+";
+  margin-left: auto;
+  color: var(--teal);
+  font-size: 22px;
+}
+.training-settings[open] > summary::after {
+  content: "−";
+}
+.training-settings > summary:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 3px;
+}
+.training-settings-body {
+  border-top: 1px solid var(--line);
+  padding: 18px;
+}
+.training-settings-body .live-learning {
+  margin: 0;
+}
+@media (max-width: 540px) {
+  .shell > .topbar {
+    padding: 16px;
+  }
+  .shell > .topbar::before {
+    background-position: 75% 50%;
+  }
+  .training-settings > summary {
+    padding: 16px;
+  }
+  .training-settings > summary span {
+    font-size: 11px;
+  }
+  .training-settings-body {
+    padding: 10px;
+  }
+}

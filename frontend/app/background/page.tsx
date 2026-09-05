@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { InferenceBudget } from "../../components/InferenceBudget";
 import { SiteNav } from "../../components/SiteNav";
@@ -37,26 +36,6 @@ export default function BackgroundPage() {
         </Link>
         <SiteNav current="background" />
       </header>
-
-      <figure className="background-banner">
-        <div className="background-banner-image">
-          <Image
-            src="/images/honse.jpg"
-            alt="Anime character in side profile"
-            fill
-            sizes="(max-width: 1600px) 100vw, 1556px"
-            priority
-          />
-        </div>
-        <figcaption>
-          <span>
-            A small experiment in neural control of fast market rules.
-          </span>
-          <a href="https://blog.sakugabooru.com/wp-content/uploads/2025/04/honse.jpg">
-            Image source ↗
-          </a>
-        </figcaption>
-      </figure>
 
       <section className="background-section" aria-labelledby="poc-title">
         <div className="background-section-heading">

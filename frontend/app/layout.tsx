@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./pageBackdrop.css";
 
 export const metadata: Metadata = {
   title: "Market Gate Lab",

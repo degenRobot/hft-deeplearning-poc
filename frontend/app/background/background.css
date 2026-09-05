@@ -8,35 +8,6 @@
 .background-topbar {
   margin-bottom: 24px;
 }
-.background-banner {
-  margin: 0 0 30px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  overflow: hidden;
-  background: var(--paper);
-}
-.background-banner-image {
-  position: relative;
-  height: clamp(150px, 20vw, 240px);
-  background: #eee;
-}
-.background-banner-image img {
-  object-fit: cover;
-  object-position: center 60%;
-}
-.background-banner figcaption {
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px 20px;
-  padding: 11px 16px;
-  color: var(--muted);
-  font-size: 12px;
-}
-.background-banner a {
-  color: var(--muted);
-  font-size: 10px;
-}
 .background-section {
   margin-top: 32px;
 }
@@ -381,12 +352,6 @@
   .inference-controls,
   .inference-chart {
     padding: 16px;
-  }
-  .background-banner-image {
-    height: 170px;
-  }
-  .background-banner-image img {
-    object-position: 75% 50%;
   }
   .background-gate {
     padding: 12px;
