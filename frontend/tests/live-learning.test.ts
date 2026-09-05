@@ -305,21 +305,21 @@ describe("Training Lab manual and live telemetry", () => {
       root
         .findByProps({ "aria-label": "Training view" })
         .findAllByType("button");
-    expect(tabs()[1].props["aria-pressed"]).toBe(true);
-    await act(async () => tabs()[0].props.onClick());
     expect(tabs()[0].props["aria-pressed"]).toBe(true);
+    await act(async () => tabs()[1].props.onClick());
+    expect(root.findByProps({ role: "switch" }).props.checked).toBe(true);
+    await act(async () => tabs()[0].props.onClick());
     unavailable = true;
     await act(async () => {
       vi.advanceTimersByTime(1000);
     });
-    expect(root.findByProps({ role: "switch" }).props.disabled).toBe(true);
+    expect(root.findAllByProps({ role: "switch" })).toHaveLength(0);
     expect(tabs()[0].props["aria-pressed"]).toBe(true);
     unavailable = false;
     await act(async () => {
       vi.advanceTimersByTime(1000);
     });
-    expect(root.findByProps({ role: "switch" }).props.disabled).toBe(false);
-    expect(root.findByProps({ role: "switch" }).props.checked).toBe(true);
+    expect(root.findAllByProps({ role: "switch" })).toHaveLength(0);
     expect(tabs()[0].props["aria-pressed"]).toBe(true);
     expect(tabs()[1].props["aria-pressed"]).toBe(false);
     expect(
@@ -369,7 +369,7 @@ describe("Training Lab manual and live telemetry", () => {
     await act(async () => old.resolve(response(trainingWire("manual"))));
     expect(training.data?.run_id).toBe("live");
   });
-  it("automatically opens the live view on enable and allows an explicit return to history", async () => {
+  it("opens live controls only on selection and never starts training through navigation", async () => {
     let enabled = false;
     vi.mocked(fetch).mockImplementation(async (url, init) => {
       const path = String(url);
@@ -391,6 +391,13 @@ describe("Training Lab manual and live telemetry", () => {
         .findByProps({ "aria-label": "Training view" })
         .findAllByType("button");
     expect(tabs()[0].props["aria-pressed"]).toBe(true);
+    expect(root.findAllByProps({ role: "switch" })).toHaveLength(0);
+    await act(async () => tabs()[1].props.onClick());
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.every(([, init]) => !init?.method || init.method === "GET"),
+    ).toBe(true);
     await act(async () =>
       root
         .findByProps({ role: "switch" })

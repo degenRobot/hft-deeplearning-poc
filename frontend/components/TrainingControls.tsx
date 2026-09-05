@@ -232,11 +232,9 @@ export function TrainingControls({
       <div className="training-setup-heading">
         <div>
           <span className="flow-kicker">02 / TRAIN THE MODEL</span>
-          <h2>Set up your run.</h2>
+          <h2>Configure the run</h2>
         </div>
-        <span className="training-setup-caption">
-          Selected data · your model
-        </span>
+        <span className="training-setup-caption">Model & compute</span>
       </div>
       <fieldset
         disabled={busy || !settings}

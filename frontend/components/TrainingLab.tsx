@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { LiveLearningPanel, useLiveLearning } from "./LiveLearning";
 import { TrainingProgress } from "./TrainingProgress";
 import { TrainingDataset } from "./TrainingDataset";
 import Link from "next/link";
+import { SiteNav } from "./SiteNav";
 import { TrainingControls } from "./TrainingControls";
 import { useLiveTraining } from "../hooks/useLiveTraining";
 import type { LiveTraining, TrainingStep } from "../lib/liveTraining";
@@ -382,13 +383,6 @@ function Evaluation({
 export function TrainingLab() {
   const learning = useLiveLearning();
   const [view, setView] = useState<"manual" | "live">("manual");
-  const wasEnabled = useRef(false);
-  const liveEnabled = learning.data?.enabled;
-  useEffect(() => {
-    if (liveEnabled === undefined) return;
-    if (liveEnabled && !wasEnabled.current) setView("live");
-    wasEnabled.current = liveEnabled;
-  }, [liveEnabled]);
   const { data, error, loading, pending, start, stop } = useLiveTraining(view);
   const continuous = view === "live";
   const step = data?.latest ?? null;
@@ -396,48 +390,257 @@ export function TrainingLab() {
   const historical = data?.dataset?.source_mode === "historical_candles_1s";
   return (
     <main className="shell training-lab signal-lab">
-      <header className="topbar">
-        <div className="brand">
+      <header className="topbar lab-topbar">
+        <Link
+          className="brand brand-home"
+          href="/"
+          aria-label="Market Gate Lab home"
+        >
           <span className="brand-mark">MG</span>
           <div>
             <h1>Training Lab</h1>
-            <span className="brand-caption">
-              From public events to model weights
-            </span>
+            <span className="brand-caption">Market Gate Lab</span>
           </div>
-        </div>
-        <Link className="terminal-nav" href="/">
-          Live terminal ↗
         </Link>
+        <SiteNav current="training" />
       </header>
-      <div className="training-intro">
-        <div>
-          <span className="flow-kicker">EXPERIMENTAL / LEARNING IN VIEW</span>
-          <h2>Your model, trained in front of you.</h2>
-          <p>Data in. Learn from the outcome. Watch the weights change.</p>
+      <section
+        className="training-workspace"
+        aria-labelledby="training-workspace-title"
+      >
+        <div className="training-workspace-heading">
+          <div>
+            <span className="flow-kicker">
+              EXPERIMENT / OBSERVE REAL WEIGHT UPDATES
+            </span>
+            <h2 id="training-workspace-title">Choose how to learn</h2>
+          </div>
+          <Link className="training-background-link" href="/background">
+            How the model works ↗
+          </Link>
         </div>
-      </div>
-      <LiveLearningPanel learning={learning} lab />
-      <nav className="training-view-tabs" aria-label="Training view">
-        <button aria-pressed={!continuous} onClick={() => setView("manual")}>
-          Train on history
-        </button>
-        <button aria-pressed={continuous} onClick={() => setView("live")}>
-          Live RL {learning.data?.enabled ? "●" : ""}
-        </button>
-      </nav>
-      {!continuous && (
-        <>
-          <TrainingDataset />
-          <TrainingControls
-            data={data}
-            loading={loading}
-            pending={pending}
-            start={start}
-            stop={stop}
+        <nav className="training-view-tabs" aria-label="Training view">
+          <button aria-pressed={!continuous} onClick={() => setView("manual")}>
+            <strong>Train on history</strong>
+            <span>Prepare data, run an experiment, compare results.</span>
+          </button>
+          <button aria-pressed={continuous} onClick={() => setView("live")}>
+            <strong>Live RL {learning.data?.enabled ? "· running" : ""}</strong>
+            <span>Watch the terminal model adapt to incoming data.</span>
+          </button>
+        </nav>
+        {continuous ? (
+          <LiveLearningPanel learning={learning} lab />
+        ) : (
+          <div className="training-setup-grid">
+            <TrainingDataset />
+            <TrainingControls
+              data={data}
+              loading={loading}
+              pending={pending}
+              start={start}
+              stop={stop}
+            />
+          </div>
+        )}
+      </section>
+      <section
+        className="training-results"
+        aria-labelledby="training-results-title"
+      >
+        <div className="training-results-heading">
+          <div>
+            <span className="flow-kicker">
+              {continuous ? "LIVE TELEMETRY" : "EXPERIMENT RESULTS"}
+            </span>
+            <h2 id="training-results-title">
+              {continuous ? "Inside each live update" : "Follow the learning"}
+            </h2>
+          </div>
+          <p>
+            {continuous
+              ? "Actual updates from the terminal model."
+              : "Run progress, model activations and measured outcomes."}
+          </p>
+        </div>
+        <div
+          className={`training-statusbar ${error ? "training-error" : ""}`}
+          role="status"
+        >
+          <span className={`live-indicator ${running ? "active" : ""}`} />
+          <strong>
+            {error
+              ? "Telemetry unavailable"
+              : loading
+                ? "Connecting to training backend"
+                : pending
+                  ? "Waiting for run acknowledgement"
+                  : data?.status.toUpperCase()}
+          </strong>
+          <span>
+            {error ||
+              (data?.run_id
+                ? `${continuous ? "live feed" : data.backend} · ${step ? `step ${step.step} / ${step.phase === "rl" ? (continuous ? "live RL" : "RL replay") : "supervised"}` : continuous ? "Waiting for first live update" : "Preparing dataset"}`
+                : "No training run yet")}
+          </span>
+          {data?.updated_at && (
+            <time dateTime={data.updated_at}>
+              {new Date(data.updated_at).toISOString().slice(11, 19)} UTC
+            </time>
+          )}
+        </div>
+        {!continuous && <TrainingProgress data={data} />}
+        {historical && (
+          <aside
+            className="training-mode-banner"
+            aria-label="Historical training limitations"
+          >
+            <strong>Historical candle proxy training</strong>
+            <p>
+              1s candles → 30s input → five-second close-price move. Four book
+              features unavailable; not compatible with the live terminal.
+            </p>
+            <details>
+              <summary>Data assumptions</summary>
+              {data?.dataset?.limitations?.map((limitation, index) => (
+                <p key={index}>{limitation}</p>
+              ))}
+            </details>
+          </aside>
+        )}
+        {data?.error && (
+          <p className="training-run-error" role="alert">
+            Run failed: {data.error}
+          </p>
+        )}
+        <div className="training-explainer">
+          <span>01 · features</span>
+          <b>→</b>
+          <span>02 · forward pass</span>
+          <b>→</b>
+          <span>03 · loss + gradient</span>
+          <b>→</b>
+          <span>04 · updated weights</span>
+        </div>
+        <div className="training-forward">
+          <InputWindow
+            step={step}
+            dataset={data?.dataset ?? null}
+            continuous={continuous}
           />
-        </>
-      )}
+          <TrainingNetwork step={step} dataset={data?.dataset ?? null} />
+          <Outputs step={step} />
+        </div>
+        <div className="training-secondary">
+          <article className="flow-card">
+            <span className="flow-kicker">
+              OPTIMIZATION / ACTUAL STEP HISTORY
+            </span>
+            <h2>
+              {continuous ? "Learning as data arrives" : "Learning curve"}
+            </h2>
+            {!continuous && (
+              <LossChart history={data?.history ?? []} phase="supervised" />
+            )}
+            <LossChart history={data?.history ?? []} phase="rl" />
+            <p className="flow-footnote">
+              {data?.history.length ?? 0} recent updates · each curve has its
+              own scale.
+            </p>
+          </article>
+          <article className="flow-card">
+            <span className="flow-kicker">
+              BACKPROPAGATION / STEP {step?.step ?? "—"}
+            </span>
+            <h2>What changed in the weights?</h2>
+            {step ? (
+              <table className="training-table training-layer-table">
+                <caption>L2 norms from this actual optimizer step</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Layer</th>
+                    <th scope="col">Gradient</th>
+                    <th scope="col">Weight Δ</th>
+                    <th scope="col">Weights</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {step.layers.map((layer) => (
+                    <tr key={layer.name}>
+                      <th scope="row">{layer.name}</th>
+                      <td>
+                        {decimal(layer.gradient_norm)}
+                        <i
+                          className="training-norm-bar"
+                          style={{
+                            width: `${(100 * layer.gradient_norm) / Math.max(...step.layers.map((x) => x.gradient_norm), 1e-12)}%`,
+                          }}
+                        />
+                      </td>
+                      <td className="teal">
+                        {decimal(layer.weight_delta_norm)}
+                      </td>
+                      <td>{decimal(layer.weight_norm)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <Empty>
+                No optimizer update yet. Gradient and weight-change norms will
+                appear here.
+              </Empty>
+            )}
+            <p className="flow-footnote">
+              {continuous
+                ? "Frozen layers: Δ = 0. Output head: one small gradient step."
+                : "Gradient → weight change → new expert probabilities."}
+            </p>
+            <div className="training-reward">
+              <span className="flow-kicker">
+                DELAYED REWARD / OBSERVED OUTCOME
+              </span>
+              <h3>
+                {step?.phase === "rl" && step.action !== null
+                  ? `${experts[step.action]} selected`
+                  : "Choose an expert, then observe the outcome"}
+              </h3>
+              <div>
+                <span>{step ? time(step.input_end_ts_ms) : "input time"}</span>
+                <b>
+                  → +
+                  {step
+                    ? (
+                        (step.target_ts_ms - step.input_end_ts_ms) /
+                        1000
+                      ).toFixed(1)
+                    : "5"}
+                  s →
+                </b>
+                <strong>
+                  {step?.reward != null
+                    ? decimal(step.reward)
+                    : "reward pending"}
+                </strong>
+              </div>
+              <p className="flow-footnote">
+                {continuous
+                  ? "Live observed move × sampled expert signal. Clipped proxy reward, not P&L."
+                  : "Delayed proxy reward on recorded data · not live exchange feedback."}
+              </p>
+            </div>
+          </article>
+        </div>
+        {!continuous && (
+          <details className="training-evaluation-details">
+            <summary>Dataset split &amp; holdout comparison</summary>
+            <div className="training-bottom">
+              <Dataset dataset={data?.dataset ?? null} />
+              <Evaluation evaluation={data?.evaluation ?? null} />
+            </div>
+          </details>
+        )}
+      </section>
       <details className="flow-card transfer-note">
         <summary>How does transfer learning fit?</summary>
         <div className="learning-cycle">
@@ -477,176 +680,6 @@ export function TrainingLab() {
           </a>
         </p>
       </details>
-      <div
-        className={`training-statusbar ${error ? "training-error" : ""}`}
-        role="status"
-      >
-        <span className={`live-indicator ${running ? "active" : ""}`} />
-        <strong>
-          {error
-            ? "Telemetry unavailable"
-            : loading
-              ? "Connecting to training backend"
-              : pending
-                ? "Waiting for run acknowledgement"
-                : data?.status.toUpperCase()}
-        </strong>
-        <span>
-          {error ||
-            (data?.run_id
-              ? `${continuous ? "live feed" : data.backend} · ${step ? `step ${step.step} / ${step.phase === "rl" ? (continuous ? "live RL" : "RL replay") : "supervised"}` : continuous ? "Waiting for first live update" : "Preparing dataset"}`
-              : "No training run yet")}
-        </span>
-        {data?.updated_at && (
-          <time dateTime={data.updated_at}>
-            {new Date(data.updated_at).toISOString().slice(11, 19)} UTC
-          </time>
-        )}
-      </div>
-      {!continuous && <TrainingProgress data={data} />}
-      {historical && (
-        <aside
-          className="training-mode-banner"
-          aria-label="Historical training limitations"
-        >
-          <strong>Historical candle proxy training</strong>
-          <p>
-            1s candles → 30s input → five-second close-price move. Four book
-            features unavailable; not compatible with the live terminal.
-          </p>
-          <details>
-            <summary>Data assumptions</summary>
-            {data?.dataset?.limitations?.map((limitation, index) => (
-              <p key={index}>{limitation}</p>
-            ))}
-          </details>
-        </aside>
-      )}
-      {data?.error && (
-        <p className="training-run-error" role="alert">
-          Run failed: {data.error}
-        </p>
-      )}
-      <div className="training-explainer">
-        <span>01 · features</span>
-        <b>→</b>
-        <span>02 · forward pass</span>
-        <b>→</b>
-        <span>03 · loss + gradient</span>
-        <b>→</b>
-        <span>04 · updated weights</span>
-      </div>
-      <div className="training-forward">
-        <InputWindow
-          step={step}
-          dataset={data?.dataset ?? null}
-          continuous={continuous}
-        />
-        <TrainingNetwork step={step} dataset={data?.dataset ?? null} />
-        <Outputs step={step} />
-      </div>
-      <div className="training-secondary">
-        <article className="flow-card">
-          <span className="flow-kicker">
-            OPTIMIZATION / ACTUAL STEP HISTORY
-          </span>
-          <h2>{continuous ? "Learning as data arrives" : "Learning curve"}</h2>
-          {!continuous && (
-            <LossChart history={data?.history ?? []} phase="supervised" />
-          )}
-          <LossChart history={data?.history ?? []} phase="rl" />
-          <p className="flow-footnote">
-            {data?.history.length ?? 0} recent updates · each curve has its own
-            scale.
-          </p>
-        </article>
-        <article className="flow-card">
-          <span className="flow-kicker">
-            BACKPROPAGATION / STEP {step?.step ?? "—"}
-          </span>
-          <h2>What changed in the weights?</h2>
-          {step ? (
-            <table className="training-table training-layer-table">
-              <caption>L2 norms from this actual optimizer step</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Layer</th>
-                  <th scope="col">Gradient</th>
-                  <th scope="col">Weight Δ</th>
-                  <th scope="col">Weights</th>
-                </tr>
-              </thead>
-              <tbody>
-                {step.layers.map((layer) => (
-                  <tr key={layer.name}>
-                    <th scope="row">{layer.name}</th>
-                    <td>
-                      {decimal(layer.gradient_norm)}
-                      <i
-                        className="training-norm-bar"
-                        style={{
-                          width: `${(100 * layer.gradient_norm) / Math.max(...step.layers.map((x) => x.gradient_norm), 1e-12)}%`,
-                        }}
-                      />
-                    </td>
-                    <td className="teal">{decimal(layer.weight_delta_norm)}</td>
-                    <td>{decimal(layer.weight_norm)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <Empty>
-              No optimizer update yet. Gradient and weight-change norms will
-              appear here.
-            </Empty>
-          )}
-          <p className="flow-footnote">
-            {continuous
-              ? "Frozen layers: Δ = 0. Output head: one small gradient step."
-              : "Gradient → weight change → new expert probabilities."}
-          </p>
-          <div className="training-reward">
-            <span className="flow-kicker">
-              DELAYED REWARD / OBSERVED OUTCOME
-            </span>
-            <h3>
-              {step?.phase === "rl" && step.action !== null
-                ? `${experts[step.action]} selected`
-                : "Choose an expert, then observe the outcome"}
-            </h3>
-            <div>
-              <span>{step ? time(step.input_end_ts_ms) : "input time"}</span>
-              <b>
-                → +
-                {step
-                  ? ((step.target_ts_ms - step.input_end_ts_ms) / 1000).toFixed(
-                      1,
-                    )
-                  : "5"}
-                s →
-              </b>
-              <strong>
-                {step?.reward != null ? decimal(step.reward) : "reward pending"}
-              </strong>
-            </div>
-            <p className="flow-footnote">
-              {continuous
-                ? "Live observed move × sampled expert signal. Clipped proxy reward, not P&L."
-                : "Delayed proxy reward on recorded data · not live exchange feedback."}
-            </p>
-          </div>
-        </article>
-      </div>
-      {!continuous && (
-        <details className="training-evaluation-details">
-          <summary>Dataset split &amp; holdout comparison</summary>
-          <div className="training-bottom">
-            <Dataset dataset={data?.dataset ?? null} />
-            <Evaluation evaluation={data?.evaluation ?? null} />
-          </div>
-        </details>
-      )}
       <footer className="footer">
         Educational demo · actual weight updates · synthetic quotes only
       </footer>
