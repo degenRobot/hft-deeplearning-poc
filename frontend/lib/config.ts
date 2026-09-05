@@ -90,8 +90,6 @@ export function normalizeConfig(
     numericFields.map((key) => [key, numberOr(raw[key], fallback[key])]),
   );
   return {
-    ...fallback,
-    ...raw,
     ...numeric,
     source: pick(raw.source, sources, fallback.source),
     gate_mode: pick(raw.gate_mode, gateModes, fallback.gate_mode),
@@ -116,6 +114,8 @@ export function validateConfig(config: AppConfig): string[] {
   const errors: string[] = [];
   if (!/^[A-Z0-9]{5,20}$/.test(config.symbol))
     errors.push("Symbol must be 5–20 uppercase letters and numbers.");
+  if (config.source === "replay" && config.symbol !== "BTCUSDT")
+    errors.push("Replay fixture supports BTCUSDT only.");
   if (!Number.isInteger(config.gate_interval_ms))
     errors.push("Gate interval must be a whole number of milliseconds.");
   if (!Number.isInteger(config.flow_window_trades))

@@ -2,6 +2,7 @@ import asyncio
 from functools import partial
 from pathlib import Path
 
+import pytest
 from starlette.requests import Request
 
 from market_gate.api import create_app
@@ -87,5 +88,30 @@ def test_feed_that_returns_normally_is_reported_as_failed(tmp_path: Path) -> Non
         assert runtime.feed_error == "FeedEndedError"
         assert runtime.feed_task is None
         await runtime.stop()
+
+    asyncio.run(scenario())
+
+
+def test_configure_returns_run_identity_and_invalid_patch_preserves_active_run() -> None:
+    async def scenario() -> None:
+        runtime = MarketRuntime(
+            LabConfig(), ROOT / "models" / "gate-demo.npz", ROOT / "fixtures" / "replay.jsonl"
+        )
+        await runtime.start()
+        try:
+            receipt = await runtime.configure({"gate_mode": "uniform"})
+            assert receipt["run_id"] == runtime.engine.run_id
+            assert receipt["feed_generation"] == runtime.feed_generation
+            assert receipt["gate_mode"] == "uniform"
+            assert "run_id" not in runtime.config.public()
+            previous_engine, previous_task = runtime.engine, runtime.feed_task
+            with pytest.raises(ValueError, match="BTCUSDT"):
+                await runtime.configure({"symbol": "ETHUSDT", "gate_mode": "static"})
+            assert runtime.engine is previous_engine
+            assert runtime.feed_task is previous_task
+            assert runtime.feed_generation == receipt["feed_generation"]
+            assert runtime.config.gate_mode == "uniform"
+        finally:
+            await runtime.stop()
 
     asyncio.run(scenario())

@@ -28,21 +28,15 @@ const API_URL = (process.env.NEXT_PUBLIC_API_URL || API_DEFAULT).replace(
   /\/$/,
   "",
 );
+export const SNAPSHOT_TIMEOUT_MS = 2500;
 
 const errorText = (cause: unknown, fallback: string) =>
   cause instanceof Error ? cause.message : fallback;
 
-const request = async (
-  path: string,
-  init: RequestInit,
-  label: string,
-  jsonFallback?: unknown,
-) => {
+const request = async (path: string, init: RequestInit, label: string) => {
   const response = await fetch(`${API_URL}${path}`, init);
   if (!response.ok) throw new Error(`${label} ${response.status}`);
-  return jsonFallback === undefined
-    ? response.json()
-    : response.json().catch(() => jsonFallback);
+  return response.json();
 };
 
 export function useMarketGate() {
@@ -58,7 +52,9 @@ export function useMarketGate() {
   const [resetResult, setResetResult] = useState<ResetResponse | null>(null);
   const [lastError, setLastError] = useState("");
   const [reconnectToken, setReconnectToken] = useState(0);
-  const runIdRef = useRef<string | null>(null);
+  const runRef = useRef<ResetResponse | null>(null);
+  const socketEpochRef = useRef(0);
+  const mutatingRef = useRef(false);
   const configRequestGenerationRef = useRef(0);
   const configMutationGenerationRef = useRef(0);
   const configAbortRef = useRef<AbortController | null>(null);
@@ -67,7 +63,6 @@ export function useMarketGate() {
 
   const clearLiveState = useCallback(() => {
     setState(EMPTY_STATE);
-    runIdRef.current = null;
   }, []);
 
   const clearTransient = () => {
@@ -87,7 +82,8 @@ export function useMarketGate() {
     configRequestGenerationRef.current += 1;
   };
 
-  const syncConfig = useCallback(async () => {
+  const syncConfig = useCallback(async (mutationError = "") => {
+    if (mutatingRef.current) return;
     configAbortRef.current?.abort();
     const controller = new AbortController();
     configAbortRef.current = controller;
@@ -119,7 +115,7 @@ export function useMarketGate() {
         draftConfigRef.current = merged.draftConfig;
         setDraftConfig(merged.draftConfig);
       }
-      setSettingsError("");
+      setSettingsError(mutationError);
     } catch (error: unknown) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       if (!isCurrent()) return;
@@ -140,7 +136,24 @@ export function useMarketGate() {
 
   useEffect(() => {
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-    let closedByEffect = false;
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    let closed = false;
+    const epoch = ++socketEpochRef.current;
+    const current = () => socketEpochRef.current === epoch && !closed;
+    runRef.current = null;
+    const armWatchdog = () => {
+      clearTimeout(watchdog);
+      watchdog = setTimeout(() => {
+        if (!current()) return;
+        if (mutatingRef.current) {
+          armWatchdog();
+          return;
+        }
+        clearLiveState();
+        setStatus("error");
+        setLastError("Backend snapshots stopped arriving");
+      }, SNAPSHOT_TIMEOUT_MS);
+    };
     // The socket is an external subscription; clear prior values before it is opened.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setStatus("connecting");
@@ -148,25 +161,40 @@ export function useMarketGate() {
     clearLiveState();
     const socket = new WebSocket(websocketUrl(API_URL));
     socket.onopen = () => {
+      if (!current()) return;
       setStatus("connecting");
       setLastError("");
       void syncConfig();
+      armWatchdog();
     };
     socket.onmessage = (event) => {
+      if (!current() || mutatingRef.current) return;
       const parsed =
         typeof event.data === "string" ? parseStateMessage(event.data) : null;
       if (!parsed) {
+        clearLiveState();
+        setStatus("error");
         setLastError("Received an invalid state snapshot");
         return;
       }
-      setLastError("");
+      const previous = runRef.current;
+      const received = parsed.health;
       if (
-        runIdRef.current !== null &&
-        parsed.health.run_id !== runIdRef.current
-      ) {
+        previous &&
+        (received.feed_generation < previous.feed_generation ||
+          (received.feed_generation === previous.feed_generation &&
+            received.run_id !== previous.run_id))
+      )
+        return;
+      armWatchdog();
+      setLastError("");
+      if (previous && received.run_id !== previous.run_id) {
         void syncConfig();
       }
-      runIdRef.current = parsed.health.run_id;
+      runRef.current = {
+        run_id: received.run_id,
+        feed_generation: received.feed_generation,
+      };
       setState(parsed);
       if (!parsed.health.ready) {
         setStatus("connecting");
@@ -175,21 +203,25 @@ export function useMarketGate() {
       setStatus("connected");
     };
     socket.onerror = () => {
+      if (!current()) return;
       clearLiveState();
       setStatus("error");
       setLastError(`Could not reach ${API_URL}`);
     };
     socket.onclose = () => {
-      if (closedByEffect) return;
+      if (!current()) return;
+      closed = true;
+      clearTimeout(watchdog);
       clearLiveState();
       setStatus("disconnected");
-      reconnectTimer = setTimeout(
-        () => setReconnectToken((token) => token + 1),
-        3500,
-      );
+      reconnectTimer = setTimeout(() => {
+        if (socketEpochRef.current === epoch)
+          setReconnectToken((token) => token + 1);
+      }, 3500);
     };
     return () => {
-      closedByEffect = true;
+      if (current()) socketEpochRef.current += 1;
+      clearTimeout(watchdog);
       if (reconnectTimer) clearTimeout(reconnectTimer);
       socket.close();
     };
@@ -211,6 +243,7 @@ export function useMarketGate() {
   };
 
   const revertDraft = () => {
+    if (mutatingRef.current) return;
     invalidateConfigReads();
     setDraft(appliedConfigRef.current);
     clearTransient();
@@ -218,45 +251,66 @@ export function useMarketGate() {
   };
 
   const applyConfig = async () => {
-    const errors = validateConfig(draftConfig);
+    if (mutatingRef.current) return;
+    const submitted = draftConfigRef.current;
+    const errors = validateConfig(submitted);
     if (errors.length) {
       setSettingsError(errors[0]);
       return;
     }
     clearTransient();
+    mutatingRef.current = true;
+    const epoch = socketEpochRef.current;
+    configMutationGenerationRef.current += 1;
     setApplying(true);
     invalidateConfigReads();
+    clearLiveState();
+    setStatus("connecting");
+    let mutationError = "";
     try {
       const payload = await request(
         "/config",
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(draftConfig),
+          body: JSON.stringify(submitted),
         },
         "Config update returned",
-        draftConfig,
       );
-      const canonical = normalizeConfig(payload, draftConfig);
+      const receipt = parseResetResponse(payload);
+      if (!receipt)
+        throw new Error("Config update returned an invalid run receipt");
+      const canonical = normalizeConfig(payload, submitted);
       // The backend starts a new engine for every applied config. Clear the
       // previous run before exposing its new labels or cadence in the UI.
       clearLiveState();
       setStatus("connecting");
-      configMutationGenerationRef.current += 1;
+      if (socketEpochRef.current === epoch) runRef.current = receipt;
+      else reconnect();
       appliedConfigRef.current = canonical;
       setAppliedConfig(canonical);
-      setDraft(canonical);
+      if (configsEqual(draftConfigRef.current, submitted)) setDraft(canonical);
     } catch (error: unknown) {
-      setSettingsError(errorText(error, "Could not update config"));
+      mutationError = errorText(error, "Could not update config");
+      setSettingsError(mutationError);
+      reconnect();
     } finally {
+      mutatingRef.current = false;
       setApplying(false);
+      await syncConfig(mutationError);
     }
   };
 
   const resetRun = async () => {
+    if (mutatingRef.current) return;
+    mutatingRef.current = true;
+    const epoch = socketEpochRef.current;
+    configMutationGenerationRef.current += 1;
+    invalidateConfigReads();
     setResetting(true);
     clearTransient();
     clearLiveState();
+    setStatus("connecting");
     try {
       const payload = await request(
         "/reset",
@@ -270,15 +324,22 @@ export function useMarketGate() {
       clearLiveState();
       setStatus("connecting");
       setResetResult(result);
-      await syncConfig();
+      if (socketEpochRef.current === epoch) runRef.current = result;
+      else reconnect();
     } catch (error: unknown) {
       setResetError(errorText(error, "Could not reset run"));
+      reconnect();
     } finally {
+      mutatingRef.current = false;
       setResetting(false);
+      await syncConfig();
     }
   };
 
-  const reconnect = () => setReconnectToken((token) => token + 1);
+  const reconnect = () => {
+    socketEpochRef.current += 1;
+    setReconnectToken((token) => token + 1);
+  };
   const configErrors = validateConfig(draftConfig);
   return {
     apiUrl: API_URL,

@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "experiment_id": "phase2-2026-09-05",
+  "title": "Three bounded public samples failed the predefined data gate",
+  "preregistration_path": "artifacts/phase2/preregistration.json",
+  "preregistration_sha256": "e6c7097e1690081cecac43cc097eacf1d3874a12c9b6aa3029adae8e76041327",
+  "evaluation_source_commit": "985c399da59f609293bd1ba462a72f0ba73b2a02",
+  "minimum_train_examples": 30,
+  "minimum_validation_examples": 15,
+  "seeds": [
+    7,
+    17,
+    27
+  ],
+  "epochs": 20,
+  "accepted_samples": 0,
+  "attempted_samples": 3,
+  "experimental_models_trained": 0,
+  "replacement_captures": 0,
+  "cloud": {
+    "status": "not_run",
+    "reason": "No exact remote payload/spend authorization; optional cloud does not block local findings."
+  },
+  "samples": [
+    {
+      "id": "sample-1",
+      "input_path": "data/phase2/sample-1.jsonl",
+      "input_sha256": "fbc4f3729428c0c7848c2f76f80bc1337f0a43617f7a1b8209c9bc679f5a1e51",
+      "scheduled_start": "2026-09-04T21:07:36.600628+00:00",
+      "started_at": "2026-09-04T21:07:36.601342+00:00",
+      "finished_at": "2026-09-04T21:09:45.959480+00:00",
+      "capture_exit_code": 0,
+      "recorded_events": 657,
+      "recording_source_commit": "c8338493594ab31b1bd0c78c81873b017f0c5a85",
+      "frames": 114,
+      "candidate_examples": 80,
+      "gap_excluded_examples": 63,
+      "boundary_excluded_examples": 1,
+      "train_examples": 0,
+      "validation_examples": 16,
+      "status": "rejected",
+      "reasons": [
+        "fewer than 30 training windows"
+      ],
+      "models_trained": 0
+    },
+    {
+      "id": "sample-2",
+      "input_path": "data/phase2/sample-2.jsonl",
+      "input_sha256": "4c1dc6ef415e4c37d283ecf1511875d7d3db15d2092c50cf427a4c18a9b81e9b",
+      "scheduled_start": "2026-09-04T21:10:36.600628+00:00",
+      "started_at": "2026-09-04T21:10:36.605763+00:00",
+      "finished_at": "2026-09-04T21:12:43.160000+00:00",
+      "capture_exit_code": 0,
+      "recorded_events": 359,
+      "recording_source_commit": "c8338493594ab31b1bd0c78c81873b017f0c5a85",
+      "frames": 115,
+      "candidate_examples": 81,
+      "gap_excluded_examples": 60,
+      "boundary_excluded_examples": 1,
+      "train_examples": 3,
+      "validation_examples": 17,
+      "status": "rejected",
+      "reasons": [
+        "fewer than 30 training windows"
+      ],
+      "models_trained": 0
+    },
+    {
+      "id": "sample-3",
+      "input_path": "data/phase2/sample-3.jsonl",
+      "input_sha256": "b4b234f11282c5798a0213247f4320ff296f09ec359390fb683e1bd1fb7709d5",
+      "scheduled_start": "2026-09-04T21:13:36.600628+00:00",
+      "started_at": "2026-09-04T21:13:36.601730+00:00",
+      "finished_at": "2026-09-04T21:15:45.660133+00:00",
+      "capture_exit_code": 0,
+      "recorded_events": 462,
+      "recording_source_commit": "c8338493594ab31b1bd0c78c81873b017f0c5a85",
+      "frames": 115,
+      "candidate_examples": 81,
+      "gap_excluded_examples": 57,
+      "boundary_excluded_examples": 0,
+      "train_examples": 24,
+      "validation_examples": 0,
+      "status": "rejected",
+      "reasons": [
+        "fewer than 30 training windows",
+        "fewer than 15 validation windows"
+      ],
+      "models_trained": 0
+    }
+  ],
+  "conclusion": "No model-quality comparison can be made for this experiment. All three captures failed the predefined sufficiency gate; gaps and embargo removed too many windows. Thresholds were not relaxed and samples were not replaced.",
+  "limitations": [
+    "Three nearby two-minute windows cannot establish generalisation.",
+    "The offline event-time proxy pipeline differs from live receive-time and rolling expert state.",
+    "Original v1 teaching artifacts remain unchanged.",
+    "A separate synthetic v2 reference tests export reproducibility only and is not a fourth market sample."
+  ]
+}

@@ -51,30 +51,55 @@ neural, uniform, and static weighting modes. Presets change only the local draft
 The backend also exposes `GET /health`, `GET/PATCH /config`, `POST /reset`, `GET /ledger`,
 `GET /training`, and `WS /ws/market` on <http://localhost:8000>.
 
-## Record and train the example gate
+## Understand the training artifacts
+
+The active dashboard gate loads `models/gate-demo.npz`. The dashboard's **original v1 offline
+walkthrough** reads the archived `artifacts/training-demo.json`; its separate
+`models/gate-binance-demo.npz` is not the active gate. Running a trainer does not update the
+dashboard or either committed model.
+
+The corrected v2 pipeline retains event-time frame timestamps, resets feature history at gaps,
+excludes windows crossing missing seconds, and leaves an embargo between training and validation.
+It compares the neural gate with uniform, static 50/35/15 and all three individual experts on the
+same held-out proxy labels. These one-second labels differ from the live receive-time clock and
+rolling expert state; results do not establish runtime equivalence or trading performance.
+
+The September 5 bounded experiment attempted three public two-minute captures. Their usable
+training/validation counts were **0/16, 3/17 and 24/0**, below the predefined **30/15** minimum.
+All three were retained and rejected, with **zero experimental models and zero replacement
+captures**. Reproduce the counts and verify the evidence hashes with `make experiment-check`.
+See [the frozen contract](docs/experiment-contract.md) and
+[the complete experiment receipt](artifacts/phase2-summary.json).
+
+## Run a local reproducibility example
 
 ```sh
-uv sync --extra training
-uv run --extra training python scripts/record_binance.py
-uv run --extra training python scripts/train_gate.py
+uv sync --extra dev --extra training
+make train RUN_DIR=artifacts/my-first-run
 ```
 
-The recorder listens for up to two minutes, or 20,000 saved events, on Binance's public
-`bookTicker` and `aggTrade` streams. It keeps all aggregate trades, samples the top of book once
-per second, and writes normalized JSONL without credentials or order access. The trainer builds
-causal one-second frames, forms `30 x 10` windows, keeps validation later than training, and
-writes two inspectable outputs:
+This uses `fixtures/parity-replay-v2.jsonl`, five deterministic cycles of the existing synthetic
+replay fixture, to check v2 training and portable NumPy export. It is separate from the public-data
+experiment and makes no model-quality claim. It writes a new model and receipt under the selected
+run directory and refuses to overwrite them. Choose a new directory for each run.
 
-- `models/gate-binance-demo.npz`, a separate model that does not replace the live demo model.
-- `artifacts/training-demo.json`, the receipt shown in the dashboard.
+To record public Binance data for a separately planned experiment, use an explicit new path:
 
-The committed sample and receipt work offline; `data/README.md` records provenance, while
-`notebooks/gate_training.ipynb` shows the same model shape and Torch-free export synthetically.
+```sh
+make record RUN_DIR=artifacts/my-public-sample
+make train INPUT=artifacts/my-public-sample/recording.jsonl RUN_DIR=artifacts/my-public-fit
+```
 
-The labels are one-second proxies; the live flow and reversion experts keep longer rolling state.
-This proves the plumbing, not generalization, trading performance, or profitability. For optional
-cloud parity, `make modal-plan` prints a no-contact plan. After checking credits and spend, run
-`uv run --with modal==1.5.2 python scripts/train_on_modal.py --run`. No Modal run is recorded here.
+The recorder stops after two minutes or 20,000 saved events, keeps aggregate trades and samples
+books at 1,000 ms. Two minutes need not yield enough contiguous windows. Set an acceptance policy
+before collecting; a nonempty trainer split alone does not satisfy the September experiment's
+30/15 floor. The original sample's provenance is in [data/README.md](data/README.md).
+
+`make modal-plan` prints a no-contact plan against the **new synthetic v2 reference**
+`models/gate-parity-v2.npz`. Remote execution is optional and remains **not run**. It uploads
+tracked private source and the selected fixture; account balance, payload and spend need approval
+before invoking `--run`. CPU/memory limits and execution timeout do not cap whole-job charges.
+See [the parity reference receipt](artifacts/parity-reference-v2.json).
 
 ## Change the inputs
 
@@ -85,9 +110,9 @@ stay in memory: **Reset simulation** starts a fresh run, while a backend restart
 ## Verify it
 
 ```sh
-uv run ruff format --check .
-uv run ruff check .
-uv run pytest
+uv run --extra dev --extra training ruff format --check .
+uv run --extra dev --extra training ruff check .
+uv run --extra dev --extra training pytest
 cd frontend && pnpm format:check && pnpm test && pnpm lint && pnpm build
 ```
 

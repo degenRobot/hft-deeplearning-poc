@@ -35,15 +35,12 @@ async def collect_events(
 
 
 def parse_args() -> argparse.Namespace:
-    root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--symbol", default="BTCUSDT")
     parser.add_argument("--seconds", type=float, default=120)
     parser.add_argument("--max-events", type=int, default=20_000)
     parser.add_argument("--book-interval-ms", type=int, default=1_000)
-    parser.add_argument(
-        "--output", type=Path, default=root / "data" / "binance-btcusdt-sample.jsonl"
-    )
+    parser.add_argument("--output", type=Path, required=True)
     return parser.parse_args()
 
 
@@ -51,6 +48,8 @@ def main() -> None:
     args = parse_args()
     if args.seconds <= 0 or args.max_events < 1 or args.book_interval_ms < 1:
         raise SystemExit("--seconds, --max-events, and --book-interval-ms must be positive")
+    if args.output.exists() or args.output.is_symlink():
+        raise SystemExit("--output must be a new file; refusing to overwrite")
     events = asyncio.run(
         collect_events(args.symbol, args.seconds, args.max_events, args.book_interval_ms)
     )

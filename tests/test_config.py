@@ -42,3 +42,13 @@ def test_symbol_type_error_is_reported_as_validation_error() -> None:
     config = LabConfig()
     with pytest.raises(ValueError, match="symbol"):
         config.patch({"symbol": 1234567})
+
+
+def test_replay_symbol_constraint_is_atomic_and_live_symbols_remain_supported() -> None:
+    config = LabConfig(source="binance", symbol="ETHUSDT")
+    before = config.public()
+    with pytest.raises(ValueError, match="replay fixture supports BTCUSDT"):
+        config.patch({"source": "replay", "gate_mode": "uniform"})
+    assert config.public() == before
+    config.patch({"source": "replay", "symbol": "BTCUSDT"})
+    assert config.source == "replay"

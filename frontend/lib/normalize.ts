@@ -1,4 +1,5 @@
 import { EMPTY_STATE, type MarketGateState } from "./types";
+import { parseResetResponse } from "./reset";
 
 const finite = (value: unknown, fallback = 0) => {
   const number = typeof value === "number" ? value : Number(value);
@@ -101,6 +102,7 @@ export function normalizeState(input: unknown): MarketGateState | null {
       risk_reason: text(rawHealth.risk_reason, text(raw.risk_reason, "")),
       run_id: text(rawHealth.run_id, text(raw.run_id, "")),
       message_age_ms: nonNegative(rawHealth.message_age_ms),
+      book_age_ms: nonNegative(rawHealth.book_age_ms),
       reconnects: nonNegative(rawHealth.reconnects),
       events_processed: nonNegative(
         rawHealth.events_processed,
@@ -120,7 +122,68 @@ export function normalizeState(input: unknown): MarketGateState | null {
 
 export function parseStateMessage(message: string): MarketGateState | null {
   try {
-    return normalizeState(JSON.parse(message));
+    const raw = record(JSON.parse(message));
+    const health = record(raw.health);
+    const market = record(raw.market);
+    const gate = record(raw.gate);
+    const weights = record(gate.weights);
+    const paper = record(raw.paper);
+    const quote = record(raw.quote);
+    const validNumber = (value: unknown) =>
+      typeof value === "number" && Number.isFinite(value);
+    if (
+      !parseResetResponse(health) ||
+      typeof health.ready !== "boolean" ||
+      typeof health.feed_status !== "string" ||
+      !validNumber(raw.timestamp) ||
+      Number(raw.timestamp) < 0 ||
+      Number.isNaN(new Date(Number(raw.timestamp)).valueOf()) ||
+      !validNumber(market.mid) ||
+      !validNumber(gate.revision) ||
+      ![
+        market.spread_bps,
+        market.imbalance,
+        market.trade_flow,
+        gate.cadence_ms,
+        gate.next_refresh_ms,
+        weights.microprice,
+        weights.flow,
+        weights.reversion,
+        paper.inventory,
+        paper.pnl,
+        health.message_age_ms,
+        health.book_age_ms,
+      ].every(validNumber) ||
+      Number(health.message_age_ms) < 0 ||
+      Number(health.book_age_ms) < 0 ||
+      Number(market.spread_bps) < 0 ||
+      !["neural", "uniform", "static", "uniform-fallback"].includes(
+        String(gate.mode),
+      ) ||
+      !Array.isArray(raw.experts) ||
+      raw.experts.length !== 3 ||
+      !raw.experts.every((expert) => {
+        const item = record(expert);
+        return (
+          typeof item.id === "string" &&
+          typeof item.label === "string" &&
+          [item.score, item.weight, item.contribution].every(validNumber)
+        );
+      }) ||
+      (health.ready &&
+        (Number(raw.timestamp) <= 0 ||
+          Number(market.mid) <= 0 ||
+          health.feed_status !== "running")) ||
+      !["replay", "binance"].includes(String(raw.source)) ||
+      typeof raw.symbol !== "string" ||
+      (raw.quote !== null &&
+        (!validNumber(quote.bid) ||
+          !validNumber(quote.ask) ||
+          Number(quote.bid) <= 0 ||
+          Number(quote.ask) <= Number(quote.bid)))
+    )
+      return null;
+    return normalizeState(raw);
   } catch {
     return null;
   }

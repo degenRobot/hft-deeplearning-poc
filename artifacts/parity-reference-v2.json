@@ -1,0 +1,153 @@
+{
+  "schema_version": 2,
+  "generated_at": "2026-09-04T21:31:03.919099Z",
+  "source": {
+    "name": "Synthetic replay fixture",
+    "symbol": "BTCUSDT",
+    "venue": "replay",
+    "url": null,
+    "recording_path": "fixtures/parity-replay-v2.jsonl",
+    "started_at": "2023-11-14T22:13:20Z",
+    "ended_at": "2023-11-14T22:15:54Z",
+    "duration_seconds": 154.0,
+    "event_counts": {
+      "book": 155,
+      "trade": 85,
+      "total": 240
+    }
+  },
+  "dataset": {
+    "feature_names": [
+      "return_1s",
+      "return_5s",
+      "realized_volatility",
+      "spread_bps",
+      "book_imbalance",
+      "microprice_displacement",
+      "signed_flow_ratio",
+      "trade_arrivals",
+      "quote_updates",
+      "fair_value_distance"
+    ],
+    "frame_seconds": 1,
+    "lookback_frames": 30,
+    "horizon_frames": 5,
+    "frames": 154,
+    "examples": 86,
+    "train_examples": 62,
+    "validation_examples": 24,
+    "clock": "event_ts_ms",
+    "gap_policy": "exclude_crossing_windows",
+    "feature_history": "reset_after_gap; discard pre-book trades; full 30-frame model input",
+    "candidate_examples": 120,
+    "gap_excluded_examples": 0,
+    "boundary_excluded_examples": 34,
+    "missing_seconds": 0,
+    "first_frame_close_ts_ms": 1700000000999,
+    "last_frame_close_ts_ms": 1700000153999,
+    "train_last_target_ts_ms": 1700000095999,
+    "validation_first_start_ts_ms": 1700000096999,
+    "validation_last_target_ts_ms": 1700000153999
+  },
+  "training": {
+    "seed": 7,
+    "epochs": 20,
+    "learning_rate": 0.001,
+    "parameter_count": 21443,
+    "first_train_loss": 0.00582926394417882,
+    "last_train_loss": 0.0011961419368162751,
+    "validation_loss": 0.0029920104425400496,
+    "model_path": "models/gate-parity-v2.npz"
+  },
+  "limitations": [
+    "A short sample is a teaching artifact, not a trading signal or backtest.",
+    "The labels use one-second proxies for the live microprice, flow, and reversion experts; flow and reversion do not reproduce the live engine's rolling state.",
+    "The exported model is an offline example and is not the gate used by the live demo.",
+    "Chronological splitting keeps validation later than training; it does not establish robustness.",
+    "34 overlapping boundary examples were excluded from both sets.",
+    "Offline event-time ordering differs from the live Binance receive-time clock.",
+    "Windows crossing absent seconds are excluded; the final open second is not used.",
+    "Overlapping held-out windows are not independent or a generalisation test."
+  ],
+  "evaluation": {
+    "objective": "mean expert-proxy score times future mid-return bps; higher is better",
+    "held_out_examples": 24,
+    "mean_proxy_utility": {
+      "neural": -0.0029920100266757573,
+      "uniform": -0.00828130558430631,
+      "static": -0.011944984041717059,
+      "microprice": -0.0183778943028301,
+      "flow": -0.008930667613943418,
+      "reversion": 0.002464645163854584
+    },
+    "neural_minus_baseline": {
+      "uniform": 0.005289295557630552,
+      "static": 0.008952974015041302,
+      "microprice": 0.015385884276154343,
+      "flow": 0.0059386575872676615,
+      "reversion": -0.005456655190530341
+    },
+    "limitations": "Overlapping windows; no P&L, search, significance or generalisation claim."
+  },
+  "provenance": {
+    "input_sha256": "6fcfe8e85a2e5c9efffab87c0ba6e01a41bd4432972624b77fd5cb6a2b52dd1e",
+    "model_sha256": "315126e4f88d0c8baf379bff9a01154f88d6911a87dbea4b2e40bb4e582a5635",
+    "source_files": {
+      "training.py": "25320cd5d69830920b4067d09154100ce7eef74eb7e994b4b8ebaf7df6cf643c",
+      "evaluation.py": "291a716246662a992fefb043f736a3dd1c9b6f8155b75e1767459a2544223ea0",
+      "features.py": "10dfcd44bc995415b0e791ffdb803438044aade2228be5c2ffb443fd34f2d21f",
+      "experts.py": "7c4d936977c8bb62e96cd59d1829131125123bf8ec881c8958c608e0974eea83",
+      "contracts.py": "9e7128f5b8863b3c47900d570c004055938927a44d51ee736ca7f5f911703e03",
+      "gate.py": "5dc28d4e5b657545ce2a2ab4302394885f0609dd77b4ff2244dc790ebb0aeb17"
+    },
+    "source_sha256": "b1b08b8daa502913e8fbaf85974cb2fb53d1df7bd5efcb4567199271a1abfc7f",
+    "config": {
+      "epochs": 20,
+      "seed": 7,
+      "learning_rate": 0.001,
+      "lookback_frames": 30,
+      "horizon_frames": 5,
+      "validation_fraction": 0.2,
+      "clock": "event_ts_ms",
+      "gap_policy": "exclude_crossing_windows",
+      "feature_history": "reset_after_gap",
+      "label": "offline_expert_proxy_future_mid_return_bps_v2"
+    },
+    "config_sha256": "339b05bae19965e1eb1a68cf10ba175b2ba7630081a15aa3feeb1620aacba942",
+    "packages": {
+      "numpy": "2.5.2",
+      "torch": "2.14.0"
+    },
+    "python": "3.12.13",
+    "platform": "macOS-26.5.1-arm64-arm-64bit",
+    "machine": "arm64"
+  },
+  "reference_verification": {
+    "scope": "Synthetic v2 plumbing reference only; no market-quality or cross-platform reproducibility claim",
+    "fixture_recipe": {
+      "source": "fixtures/replay.jsonl",
+      "source_sha256": "bef8fd026dc427770b612983e2078b12073d636ae44709b5c4c1be63c6efbad5",
+      "generator": "ReplayFeed + replay_schedule + write_recording",
+      "cycles": 5,
+      "anchor_ts_ms": 1700000000000,
+      "book_interval_ms": 1
+    },
+    "source_commit": "1655cedccd69054796082bab2224e778b669312a",
+    "local_fits": 3,
+    "strict_npz_hash_match": true,
+    "model_sha256": "315126e4f88d0c8baf379bff9a01154f88d6911a87dbea4b2e40bb4e582a5635",
+    "loss_metrics_match": true,
+    "environment": {
+      "python": "3.12.13",
+      "numpy": "2.5.2",
+      "torch": "2.14.0",
+      "platform": "macOS-26.5.1-arm64-arm-64bit",
+      "machine": "arm64",
+      "torch_threads": 8,
+      "torch_interop_threads": 12,
+      "deterministic_algorithms": false
+    },
+    "remote": "not_run",
+    "verification_note": "Two local fits matched at5584ba0. A third fit in a fresh Python process after the source-neutral receipt-copy fix matched the same NPZ hash and all evaluation values. This latest receipt records the third fit."
+  }
+}

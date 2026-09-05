@@ -9,3 +9,10 @@ data/*
 !data/README.md
 !data/binance-btcusdt-sample.jsonl
 *.pt
+
+!data/phase2/
+!data/phase2/*.jsonl
+!artifacts/phase2/
+!artifacts/phase2/*.json
+!artifacts/phase2-summary.json
+!artifacts/parity-reference-v2.json

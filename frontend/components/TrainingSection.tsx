@@ -1,6 +1,7 @@
 "use client";
 
 import { useTrainingReceipt } from "../hooks/useTrainingReceipt";
+import experiment from "../lib/experiment-summary.json";
 import {
   formatTrainingCount,
   formatTrainingDuration,
@@ -8,13 +9,6 @@ import {
   type TrainingReceipt,
 } from "../lib/training";
 import { SectionTitle } from "./Primitives";
-
-const steps = [
-  ["01", "Record", "Keep a small public book + trade sample."],
-  ["02", "Frame", "Aggregate events into causal one-second features."],
-  ["03", "Label", "Turn 30 frames × 10 features into short-horizon utilities."],
-  ["04", "Train", "Fit the slow gate, then check later validation examples."],
-] as const;
 
 function ReceiptMetrics({ receipt }: { receipt: TrainingReceipt }) {
   const { source, dataset, training } = receipt;
@@ -59,55 +53,94 @@ export function TrainingSection() {
     <section className="dashboard-section">
       <SectionTitle
         index="05"
-        eyebrow="training example"
-        title="From public ticks to a tiny model"
+        eyebrow="offline experiments"
+        title="Three captures, no new model"
+        description="The v2 public-data experiment stopped at its data checks. The active demo gate above remains separate."
       />
-      <div className="training-pipeline" aria-label="Training pipeline">
-        {steps.map(([number, title, text]) => (
-          <article className="training-step" key={number}>
-            <span className="training-step-number">{number}</span>
-            <h3>{title}</h3>
-            <p>{text}</p>
-          </article>
-        ))}
-      </div>
-      {loading ? (
-        <div className="panel training-status" role="status">
-          Looking for the latest local training receipt…
+      <div className="experiment-summary panel">
+        <span className="panel-kicker teal">
+          V2 · PUBLIC DATA · 5 SEPTEMBER 2026
+        </span>
+        <div className="training-metrics experiment-metrics">
+          {[
+            ["Captures attempted", experiment.attempted_samples],
+            ["Captures accepted", experiment.accepted_samples],
+            [
+              "Experimental models trained",
+              experiment.experimental_models_trained,
+            ],
+          ].map(([label, value]) => (
+            <div className="metric" key={label}>
+              <span className="metric-label">{label}</span>
+              <strong>{value}</strong>
+            </div>
+          ))}
         </div>
-      ) : receipt ? (
-        <div className="training-receipt">
-          <div className="training-receipt-heading">
-            <h3>{receipt.source.symbol} sample</h3>
-            <a href={receipt.source.url} target="_blank" rel="noreferrer">
-              public source ↗
-            </a>
+        <table className="experiment-samples">
+          <caption>
+            Usable examples after data checks. Each capture needed at least{" "}
+            {experiment.minimum_train_examples} training and{" "}
+            {experiment.minimum_validation_examples} validation examples.
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Capture</th>
+              <th scope="col">Train</th>
+              <th scope="col">Validation</th>
+              <th scope="col">Result</th>
+            </tr>
+          </thead>
+          <tbody>
+            {experiment.samples.map((sample, index) => (
+              <tr key={sample.id}>
+                <th scope="row">{index + 1}</th>
+                <td>{sample.train_examples}</td>
+                <td>{sample.validation_examples}</td>
+                <td>{sample.status}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="panel-caption">
+          All three captures fell short. No replacement captures were taken;
+          there is no new model comparison or performance result to report.
+        </p>
+      </div>
+      <details className="training-archive">
+        <summary>Archived v1 · offline training walkthrough</summary>
+        <p className="panel-caption">
+          This earlier local CPU example illustrates the training steps. Its
+          model and losses are separate from the active demo gate and the v2
+          experiment above.
+        </p>
+        {loading ? (
+          <div className="panel training-status" role="status">
+            Loading the archived v1 receipt…
           </div>
-          <ReceiptMetrics receipt={receipt} />
-          <p className="training-limitations">
-            <strong>Local CPU example only.</strong>{" "}
-            {receipt.limitations.join(" ")} Not a trading claim.
-          </p>
-        </div>
-      ) : (
-        <div className="panel training-status training-unavailable">
-          <strong>No training receipt yet.</strong>
-          <span>
-            {error || "Start the backend after creating a local sample."}
-          </span>
-        </div>
-      )}
-      <div className="training-commands panel">
-        <div>
-          <span className="panel-kicker teal">RUN IT LOCALLY</span>
-          <p>The receipt is from local CPU. Modal remote smoke is optional.</p>
-        </div>
-        <code>
-          <span>uv run --extra training python scripts/record_binance.py</span>
-          <span>uv run --extra training python scripts/train_gate.py</span>
-          <span>make modal-plan</span>
-        </code>
-      </div>
+        ) : receipt ? (
+          <div className="training-receipt">
+            <div className="training-receipt-heading">
+              <h3>{receipt.source.symbol} · archived v1 sample</h3>
+              <a href={receipt.source.url} target="_blank" rel="noreferrer">
+                public source ↗
+              </a>
+            </div>
+            <ReceiptMetrics receipt={receipt} />
+            <p className="training-limitations">
+              <strong>Archived teaching example.</strong>{" "}
+              {receipt.limitations.join(" ")} Not a trading claim.
+            </p>
+          </div>
+        ) : (
+          <div className="panel training-status training-unavailable">
+            <strong>Archived receipt unavailable.</strong>
+            <span>
+              {error ||
+                "The backend could not provide the archived v1 receipt."}
+            </span>
+          </div>
+        )}
+      </details>
     </section>
   );
 }

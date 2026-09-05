@@ -123,19 +123,21 @@ h1 { max-width: 650px; margin: 14px 0 16px; font-size: clamp(37px, 6vw, 76px); }
 .health-panel dl div { display: flex; justify-content: space-between; gap: 8px; padding-top: 7px; color: var(--muted); font-size: 11px; }
 .health-panel dt, .health-panel dd { margin: 0; }
 .health-panel dd { color: var(--ink); font-family: var(--mono); }
-.training-pipeline { display: grid; grid-template-columns: repeat(4, 1fr); gap: 11px; }
-.training-step { min-height: 154px; padding: 18px; border: 1px solid var(--line); border-radius: 15px; background: var(--paper); }
-.training-step-number { display: inline-grid; place-items: center; width: 27px; height: 27px; border-radius: 8px; background: var(--navy); color: var(--lime); font: 800 10px var(--mono); }
-.training-step h3 { margin: 24px 0 8px; font-size: 16px; }
-.training-step p { margin: 0; color: var(--muted); font-size: 12px; }
 .training-status { display: flex; gap: 10px; align-items: baseline; margin-top: 13px; color: var(--muted); font-size: 12px; }
 .training-receipt { margin-top: 13px; padding: 21px; border: 1px solid #ccc5ec; border-radius: 16px; background: var(--violet-soft); }
 .training-receipt-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .training-receipt-heading h3 { margin: 9px 0 0; font-size: 20px; }
 .training-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 20px; }
 .training-limitations { margin: 15px 0 0; color: #5d587e; font-size: 11px; }
-.training-commands { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 18px; align-items: center; margin-top: 13px; background: var(--navy); border-color: var(--navy); color: var(--paper); }
-.training-commands code { display: grid; gap: 8px; overflow: auto; padding: 12px 14px; border: 1px solid rgba(215, 239, 112, .25); border-radius: 9px; color: var(--lime); font: 11px/1.4 var(--mono); }
+.experiment-summary { background: var(--teal-soft); }
+.experiment-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.experiment-samples { width: 100%; margin-top: 20px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.experiment-samples caption { padding-bottom: 12px; text-align: left; color: var(--muted); font-size: 12px; }
+.experiment-samples th, .experiment-samples td { padding: 10px 6px; border-bottom: 1px solid #b9d9ce; text-align: left; }
+.experiment-samples thead { font-size: 11px; color: var(--teal); }
+.experiment-samples td:last-child { color: var(--red); font-size: 12px; }
+.training-archive { margin-top: 16px; padding: 18px; border: 1px solid var(--line); border-radius: 15px; background: var(--paper); }
+.training-archive summary { cursor: pointer; font: 700 13px var(--mono); line-height: 1.5; }
 .settings { margin-top: 34px; border: 1px solid var(--line); border-radius: 15px; background: var(--paper); }
 .settings-body { border-top: 1px solid var(--line); }
 .settings summary { cursor: pointer; list-style: none; padding: 16px 19px; font: 800 13px var(--mono); }
@@ -181,8 +183,7 @@ h1 { max-width: 650px; margin: 14px 0 16px; font-size: clamp(37px, 6vw, 76px); }
   .section-title { grid-template-columns: 1fr; gap: 10px; }
   .metric-grid { grid-template-columns: repeat(2, 1fr); }
   .split-grid, .lower-grid { grid-template-columns: 1fr 1fr; }
-  .training-pipeline, .training-metrics { grid-template-columns: repeat(2, 1fr); }
-  .training-commands { grid-template-columns: 1fr; }
+  .training-metrics { grid-template-columns: repeat(2, 1fr); }
   .gate-panel { grid-row: span 2; }
   .quote-panel { min-height: 157px; }
   .settings-grid { grid-template-columns: repeat(2, 1fr); }
@@ -198,7 +199,7 @@ h1 { max-width: 650px; margin: 14px 0 16px; font-size: clamp(37px, 6vw, 76px); }
   .intro p { font-size: 15px; }
   .stream-banner { align-items: flex-start; flex-wrap: wrap; }
   .stream-context, .stream-endpoint { width: 100%; margin-left: 28px; }
-  .metric-grid, .split-grid, .expert-grid, .lower-grid, .settings-grid, .training-pipeline, .training-metrics { grid-template-columns: 1fr; }
+  .metric-grid, .split-grid, .expert-grid, .lower-grid, .settings-grid, .training-metrics { grid-template-columns: 1fr; }
   .gate-panel { grid-row: auto; }
   .section-title h2 { font-size: 29px; }
   .footer { display: block; }

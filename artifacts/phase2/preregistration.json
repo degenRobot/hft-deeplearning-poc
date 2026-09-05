@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-09-04T21:07:21.600628+00:00",
+  "recording_source_commit": "c8338493594ab31b1bd0c78c81873b017f0c5a85",
+  "question": "Repeatability and baseline-relative proxy utility on three bounded public samples, not generalisation or P&L.",
+  "symbol": "BTCUSDT",
+  "seconds": 120,
+  "max_events": 20000,
+  "book_interval_ms": 1000,
+  "windows": [
+    {
+      "id": "sample-1",
+      "start_at": "2026-09-04T21:07:36.600628+00:00",
+      "output": "artifacts/phase2-2026-09-05/sample-1.jsonl"
+    },
+    {
+      "id": "sample-2",
+      "start_at": "2026-09-04T21:10:36.600628+00:00",
+      "output": "artifacts/phase2-2026-09-05/sample-2.jsonl"
+    },
+    {
+      "id": "sample-3",
+      "start_at": "2026-09-04T21:13:36.600628+00:00",
+      "output": "artifacts/phase2-2026-09-05/sample-3.jsonl"
+    }
+  ],
+  "seeds": [
+    7,
+    17,
+    27
+  ],
+  "epochs": 20,
+  "learning_rate": 0.001,
+  "lookback_frames": 30,
+  "horizon_frames": 5,
+  "minimum_train_examples": 30,
+  "minimum_validation_examples": 15,
+  "gap_policy": "exclude windows spanning missing event-time seconds; reset feature rolling history on gap",
+  "replacement_policy": "none; retain all failures and rejected samples",
+  "max_local_fits": 9,
+  "evaluation_source": "Freeze corrected integrated commit and input/model/config hashes before any training; original teaching artifacts immutable."
+}

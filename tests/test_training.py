@@ -109,6 +109,8 @@ def test_training_writes_the_complete_receipt_contract(tmp_path: Path) -> None:
         "dataset",
         "training",
         "limitations",
+        "evaluation",
+        "provenance",
     }
     assert receipt["dataset"]["feature_names"] == FEATURE_NAMES
     assert receipt["dataset"]["train_examples"] > 0

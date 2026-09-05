@@ -23,4 +23,7 @@ class PaperLedger:
             filled = min(trade.size, max(0.0, max_inventory - self.inventory))
             self.inventory += filled
             self.cash -= prior_quote["bid"] * filled
+        self.mark_to_market(mark)
+
+    def mark_to_market(self, mark: float) -> None:
         self.pnl = self.cash + self.inventory * mark

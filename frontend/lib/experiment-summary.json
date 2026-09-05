@@ -1,0 +1,29 @@
+{
+  "experiment_id": "phase2-2026-09-05",
+  "attempted_samples": 3,
+  "accepted_samples": 0,
+  "experimental_models_trained": 0,
+  "replacement_captures": 0,
+  "minimum_train_examples": 30,
+  "minimum_validation_examples": 15,
+  "samples": [
+    {
+      "id": "sample-1",
+      "train_examples": 0,
+      "validation_examples": 16,
+      "status": "rejected"
+    },
+    {
+      "id": "sample-2",
+      "train_examples": 3,
+      "validation_examples": 17,
+      "status": "rejected"
+    },
+    {
+      "id": "sample-3",
+      "train_examples": 24,
+      "validation_examples": 0,
+      "status": "rejected"
+    }
+  ]
+}
