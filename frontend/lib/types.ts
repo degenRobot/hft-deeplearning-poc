@@ -1,3 +1,4 @@
+import type { VisualTelemetry } from "./visual";
 export type GateMode = "neural" | "uniform" | "static" | "uniform-fallback";
 export type ConfigGateMode = Exclude<GateMode, "uniform-fallback">;
 export type FeedSource = "replay" | "binance";
@@ -11,6 +12,7 @@ export interface Expert {
 }
 
 export interface MarketGateState {
+  visual: VisualTelemetry | null;
   timestamp: string;
   source: FeedSource;
   symbol: string;
@@ -85,6 +87,7 @@ export const DEFAULT_CONFIG: AppConfig = {
 };
 
 export const EMPTY_STATE: MarketGateState = {
+  visual: null,
   timestamp: "",
   source: "replay",
   symbol: "BTCUSDT",

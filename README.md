@@ -51,6 +51,23 @@ neural, uniform, and static weighting modes. Presets change only the local draft
 The backend also exposes `GET /health`, `GET/PATCH /config`, `POST /reset`, `GET /ledger`,
 `GET /training`, and `WS /ws/market` on <http://localhost:8000>.
 
+## Read the visual flow
+
+The event tape shows the latest processed books and trades, with live receive timestamps, alongside
+traces for the three deterministic experts and their weighted contributions. The slower path shows
+the exact observed feature frames at the last gate refresh, zero padding during warm-up, a network
+schematic and proposed versus applied weights. The schematic does not show individual neuron
+activations; inference updates the policy weights without retraining the model.
+
+Runtime settings are above the flow. Choose **Binance public** and **Apply settings** for live data,
+or keep replay for offline use. **Reduce motion** keeps the numbers updating. Numeric diagnostics
+and archived training receipts are expandable below the flow.
+
+Visual telemetry is bounded to 48 recent decision-producing events and 30 feature frames; the tape
+displays at most 12 rows and the browser receives snapshots every 100 ms. Recent event pace describes
+the retained sample, not exchange throughput. Pulses illustrate observed activity and do not measure
+execution latency. Stale or disconnected state clears the tape, traces and feature window.
+
 ## Understand the training artifacts
 
 The active dashboard gate loads `models/gate-demo.npz`. The dashboard's **original v1 offline

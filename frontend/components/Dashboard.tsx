@@ -5,6 +5,7 @@ import {
   MarketSection,
   PaperSection,
 } from "./DashboardSections";
+import { SignalFlow } from "./SignalFlow";
 import { TrainingSection } from "./TrainingSection";
 
 export function Dashboard({
@@ -20,16 +21,23 @@ export function Dashboard({
 }) {
   return (
     <>
-      <MarketSection state={state} ready={ready} />
-      <GateSection
-        state={state}
-        ready={ready}
-        nextRefresh={nextRefresh}
-        mode={mode}
-      />
-      <ExpertsSection state={state} ready={ready} />
-      <PaperSection state={state} ready={ready} />
-      <TrainingSection />
+      <SignalFlow state={state} ready={ready} nextRefresh={nextRefresh} />
+      <details className="inspect-details">
+        <summary>Inspect numeric state &amp; risk diagnostics</summary>
+        <MarketSection state={state} ready={ready} />
+        <GateSection
+          state={state}
+          ready={ready}
+          nextRefresh={nextRefresh}
+          mode={mode}
+        />
+        <ExpertsSection state={state} ready={ready} />
+        <PaperSection state={state} ready={ready} />
+      </details>
+      <details className="inspect-details">
+        <summary>Offline experiments &amp; training receipts</summary>
+        <TrainingSection />
+      </details>
     </>
   );
 }

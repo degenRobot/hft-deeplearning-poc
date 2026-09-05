@@ -1,3 +1,4 @@
+import { parseVisual } from "./visual";
 import { EMPTY_STATE, type MarketGateState } from "./types";
 import { parseResetResponse } from "./reset";
 
@@ -54,6 +55,7 @@ export function normalizeState(input: unknown): MarketGateState | null {
   );
 
   return {
+    visual: parseVisual(raw.visual),
     timestamp,
     source: raw.source === "binance" ? "binance" : "replay",
     symbol: text(raw.symbol, EMPTY_STATE.symbol),

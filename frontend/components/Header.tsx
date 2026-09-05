@@ -55,19 +55,14 @@ export function Header({
       </header>
       <section className="intro">
         <div>
-          <span className="eyebrow">Educational simulation · two clocks</span>
-          <h1>Make the slow gate visible.</h1>
+          <span className="eyebrow">
+            Educational simulation · event speed + {cadenceLabel}
+          </span>
+          <h1>Every tick. Two speeds.</h1>
           <p>
-            A read-only market microstructure lab where a learned model changes
-            the mix of fast, deterministic experts. The gate chooses weights;
-            the fast plane owns quotes, inventory and safety.
+            Watch market events become signals, then watch a slower neural gate
+            change the mix.
           </p>
-        </div>
-        <div className="intro-note">
-          <span className="note-kicker">Boundary</span>
-          <strong>{cadenceLabel}</strong>
-          <span>→ weights only →</span>
-          <strong>event-speed quote</strong>
         </div>
       </section>
       <div

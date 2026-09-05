@@ -41,16 +41,6 @@ export default function Home() {
         message={statusMessage}
         onReconnect={market.reconnect}
       />
-      <Dashboard
-        state={market.state}
-        ready={market.hasSnapshot}
-        nextRefresh={market.nextRefresh}
-        mode={
-          market.hasSnapshot
-            ? market.state.gate.mode
-            : market.appliedConfig.gate_mode
-        }
-      />
       <SettingsPanel
         config={market.draftConfig}
         dirty={market.dirty}
@@ -66,6 +56,16 @@ export default function Home() {
         onApply={market.applyConfig}
         onRevert={market.revertDraft}
         onReset={market.resetRun}
+      />
+      <Dashboard
+        state={market.state}
+        ready={market.hasSnapshot}
+        nextRefresh={market.nextRefresh}
+        mode={
+          market.hasSnapshot
+            ? market.state.gate.mode
+            : market.appliedConfig.gate_mode
+        }
       />
       <footer className="footer">
         <div>
