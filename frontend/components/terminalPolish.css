@@ -1,0 +1,167 @@
+/* Keep the reading order the same at every viewport width. */
+.signal-lab .market-lane {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2.1fr);
+  margin: 0 0 20px;
+}
+.signal-lab .fast-lane {
+  grid-template-columns: minmax(0, 1fr);
+  margin-bottom: 20px;
+}
+.signal-lab .signal-lane {
+  margin-top: 12px;
+}
+.signal-lab .signal-lane .mix-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px 22px;
+}
+.signal-lane .mix-card > .flow-kicker,
+.signal-lane .mix-card > h2 {
+  grid-column: 1 / -1;
+}
+.signal-lane .mix-card > .risk-node {
+  grid-column: 3;
+  grid-row: 3;
+}
+.signal-lane .mix-card > .quote-node {
+  grid-column: 3;
+  grid-row: 4 / 6;
+}
+.signal-lane .mix-card > .flow-footnote {
+  grid-column: 1 / -1;
+}
+.heading-with-tip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.context-tip {
+  position: static;
+  display: inline-flex;
+  font: 12px/1.6 var(--sans, sans-serif);
+  font-weight: 400;
+}
+.context-tip > button {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: var(--soft);
+  cursor: pointer;
+}
+.context-tip > button:hover,
+.context-tip > button:focus-visible {
+  color: var(--teal);
+  border-color: var(--teal);
+}
+.context-tip-content {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 8px);
+  left: 0;
+  width: min(320px, 100%);
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 8px 30px #0006;
+  text-align: left;
+}
+.terminal-learning-details > summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  cursor: pointer;
+  list-style: none;
+}
+.terminal-learning-details > summary::-webkit-details-marker {
+  display: none;
+}
+.terminal-learning-details > summary::after {
+  content: "+";
+  color: var(--muted);
+  font-size: 20px;
+  margin-left: auto;
+}
+.terminal-learning-details[open] > summary::after {
+  content: "−";
+}
+.terminal-learning-details > summary:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 8px;
+}
+.learning-summary-title {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.learning-summary-title b {
+  margin-left: 6px;
+}
+.learning-expand-label {
+  font-size: 11px;
+  color: var(--muted);
+}
+.terminal-learning-body {
+  border-top: 1px solid var(--line);
+  margin-top: 16px;
+  padding-top: 16px;
+}
+.rl-compact-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+.rl-compact-status[data-tone="running"] {
+  color: var(--teal);
+}
+.rl-compact-status[data-tone="waiting"] {
+  color: var(--orange);
+}
+.rl-compact-updates {
+  color: var(--muted);
+  font: 10px/1.5 var(--mono);
+}
+.rl-compact-error {
+  width: 100%;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .signal-lab .market-lane {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .signal-lab .signal-lane .mix-card {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .signal-lane .mix-card > .risk-node {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .signal-lane .mix-card > .quote-node {
+    grid-column: 2;
+    grid-row: auto;
+  }
+  .rl-compact-status {
+    order: 2;
+    width: 100%;
+  }
+  .learning-expand-label {
+    margin-left: auto;
+  }
+  .terminal-learning-details > summary::after {
+    margin-left: 0;
+  }
+}
+
+.rl-compact-status .rl-status-dot {
+  background: currentColor;
+}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { API_DEFAULT } from "../lib/connection";
 import "./trainingExtras.css";
+import "./terminalPolish.css";
 import { LearningActivity } from "./LearningActivity";
 const API = (process.env.NEXT_PUBLIC_API_URL || API_DEFAULT).replace(/\/$/, "");
 export type LearningStatus = {
@@ -158,11 +159,8 @@ export function LiveLearningPanel({
   lab?: boolean;
 }) {
   const { data, error, pending, change } = learning;
-  return (
-    <section
-      className="live-learning flow-card"
-      aria-label="Live reinforcement learning"
-    >
+  const content = (
+    <>
       <div className="learning-heading">
         <div>
           <span className="flow-kicker">CONTINUOUS LEARNING / LOCAL CPU</span>
@@ -211,7 +209,12 @@ export function LiveLearningPanel({
           </button>
         </div>
       </div>
-      <LearningActivity data={data} error={error} pending={pending} />
+      <LearningActivity
+        data={data}
+        error={error}
+        pending={pending}
+        hideStatus={!lab}
+      />
       <p className="flow-footnote">
         Learns the live gate’s output head; hidden layers stay frozen. Pause
         retains weights; reset or feed changes restore the demo checkpoint.{" "}
@@ -232,6 +235,37 @@ export function LiveLearningPanel({
           evidence of trading performance.
         </p>
       </details>
+    </>
+  );
+  return (
+    <section
+      className="live-learning flow-card"
+      aria-label="Live reinforcement learning"
+    >
+      {lab ? (
+        content
+      ) : (
+        <details className="terminal-learning-details">
+          <summary>
+            <span className="learning-summary-title">
+              Live RL{" "}
+              <b className={data?.enabled ? "learning-on" : ""}>
+                {!data ? "UNKNOWN" : data.enabled ? "ON" : "OFF"}
+              </b>
+            </span>
+            <LearningActivity
+              data={data}
+              error={error}
+              pending={pending}
+              compact
+            />
+            <span className="learning-expand-label">
+              Controls &amp; activity
+            </span>
+          </summary>
+          <div className="terminal-learning-body">{content}</div>
+        </details>
+      )}
     </section>
   );
 }

@@ -8,6 +8,7 @@ import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   LiveLearningPanel,
+  TerminalLearning,
   parseLearning,
   useLiveLearning,
   type LearningController,
@@ -492,5 +493,74 @@ describe("Live RL activity diagram", () => {
       expect(metrics.findAllByType("dd")[1].children).toEqual(["—"]);
       await act(async () => renderer!.unmount());
     }
+  });
+});
+
+describe("compact terminal learning", () => {
+  it("keeps one poller active while native details are collapsed, without issuing commands", async () => {
+    replies.push(
+      Promise.resolve(learningWire({ enabled: true, stage: "warming_up" })),
+    );
+    await mount(createElement(TerminalLearning));
+    const root = renderer!.root;
+    const details = root.findByProps({
+      className: "terminal-learning-details",
+    });
+    expect(details.props.open).toBeUndefined();
+    expect(details.props.onToggle).toBeUndefined();
+    const summary = details.findAllByType("summary")[0];
+    expect(summary.props.onClick).toBeUndefined();
+    expect(
+      summary
+        .findByProps({ role: "status" })
+        .findAllByType("span")
+        .some((node) => node.children.includes("Collecting inputs")),
+    ).toBe(true);
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(1);
+    replies.push(
+      Promise.resolve(
+        learningWire({ enabled: true, stage: "observing_reward", updates: 4 }),
+      ),
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(
+      summary
+        .findByProps({ role: "status" })
+        .findAllByType("span")
+        .some((node) => node.children.includes("Observing the outcome")),
+    ).toBe(true);
+    expect(
+      root.findByProps({ className: "rl-compact-updates" }).children,
+    ).toContain("4");
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(2);
+    expect(
+      vi.mocked(fetch).mock.calls.every(([, init]) => init?.method === "GET"),
+    ).toBe(true);
+  });
+  it("surfaces connection failure in the summary and keeps Training Lab expanded", async () => {
+    const learning = {
+      data: null,
+      error: "Live RL connection timed out",
+      pending: false,
+      change: vi.fn(),
+    };
+    await mount(createElement(LiveLearningPanel, { learning }));
+    expect(
+      renderer!.root.findByProps({ className: "rl-compact-error" }).children,
+    ).toEqual([learning.error]);
+    await act(async () =>
+      renderer!.update(
+        createElement(LiveLearningPanel, { learning, lab: true }),
+      ),
+    );
+    expect(
+      renderer!.root.findAllByProps({ className: "terminal-learning-details" }),
+    ).toHaveLength(0);
+    expect(
+      renderer!.root.findByProps({ "aria-label": "Live RL activity metrics" }),
+    ).toBeDefined();
+    expect(learning.change).not.toHaveBeenCalled();
   });
 });

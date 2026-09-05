@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useState } from "react";
+import { ContextTip } from "./ContextTip";
 import type { Activations } from "../lib/visual";
 import type { MarketGateState } from "../lib/types";
 
@@ -42,7 +43,15 @@ export const ActivationNetwork = memo(function ActivationNetwork({
         </span>
         <span className="flow-small">#{mode ? revision : "—"}</span>
       </div>
-      <h3>{!mode || neural ? "The bigger model" : "Neural gate bypassed"}</h3>
+      <h3 className="heading-with-tip">
+        {!mode || neural ? "Neural gate" : "Neural gate bypassed"}
+        <ContextTip label="How could the model grow?">
+          Small for illustration: 21,443 parameters turn 30 seconds of features
+          into three weights. A future controller could combine transformers and
+          other components, using multi-venue activity, cross-market signals or
+          inventory. Those inputs and architectures are not implemented here.
+        </ContextTip>
+      </h3>
       <div className="network-labels">
         <span>64 · ReLU</span>
         <span>32 · ReLU</span>

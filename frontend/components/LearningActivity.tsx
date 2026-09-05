@@ -24,10 +24,14 @@ export function LearningActivity({
   data,
   error,
   pending,
+  compact = false,
+  hideStatus = false,
 }: {
   data: LearningStatus | null;
   error: string;
   pending: boolean;
+  compact?: boolean;
+  hideStatus?: boolean;
 }) {
   const failed = Boolean(error || data?.error || data?.stage === "failed");
   const knownStage = data ? stageDetails[data.stage] : undefined;
@@ -113,30 +117,51 @@ export function LearningActivity({
           : "Awaiting telemetry",
     },
   ];
-  return (
-    <div className="rl-activity" data-tone={tone}>
-      <div
-        className="rl-statusbar"
+  if (compact)
+    return (
+      <span
+        className="rl-compact-status"
         role="status"
         aria-live="polite"
         aria-atomic="true"
+        data-tone={tone}
       >
         <span className="rl-status-dot" aria-hidden="true" />
-        <div>
-          <strong>{headline}</strong>
-          <span>{running ? knownStage![0] : "Learning process"}</span>
-        </div>
+        <span>{running ? knownStage![0] : headline}</span>
         {data && !failed && (
-          <span className="rl-source">
-            {data.source === "binance"
-              ? "Binance public feed"
-              : data.source === "replay"
-                ? "Replay fixture"
-                : data.source}{" "}
-            · {data.symbol} · local CPU
+          <span className="rl-compact-updates">
+            {data.updates} updates · {data.symbol}
           </span>
         )}
-      </div>
+        {failed && <span className="rl-compact-error">{detail}</span>}
+      </span>
+    );
+  return (
+    <div className="rl-activity" data-tone={tone}>
+      {!hideStatus && (
+        <div
+          className="rl-statusbar"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <span className="rl-status-dot" aria-hidden="true" />
+          <div>
+            <strong>{headline}</strong>
+            <span>{running ? knownStage![0] : "Learning process"}</span>
+          </div>
+          {data && !failed && (
+            <span className="rl-source">
+              {data.source === "binance"
+                ? "Binance public feed"
+                : data.source === "replay"
+                  ? "Replay fixture"
+                  : data.source}{" "}
+              · {data.symbol} · local CPU
+            </span>
+          )}
+        </div>
+      )}
       <p className="rl-detail">{detail}</p>
       <dl className="rl-metrics" aria-label="Live RL activity metrics">
         <div>

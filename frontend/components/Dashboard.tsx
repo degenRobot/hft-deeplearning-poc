@@ -7,7 +7,6 @@ import {
   PaperSection,
 } from "./DashboardSections";
 import { SignalFlow } from "./SignalFlow";
-import { TrainingSection } from "./TrainingSection";
 
 export function Dashboard({
   state,
@@ -35,10 +34,6 @@ export function Dashboard({
         />
         <ExpertsSection state={state} ready={ready} />
         <PaperSection state={state} ready={ready} />
-      </details>
-      <details className="inspect-details">
-        <summary>Offline experiments &amp; training receipts</summary>
-        <TrainingSection />
       </details>
     </>
   );
