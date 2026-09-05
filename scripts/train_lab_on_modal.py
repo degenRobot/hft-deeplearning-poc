@@ -170,6 +170,17 @@ def main():
                         writer.accept(event)
                 if completion is None or artifact_count < 3:
                     raise ValueError("remote training did not return completed model artifacts")
+                receipt = json.loads((args.output / "training-lab.json").read_text())
+                if receipt["dataset"]["sha256"] != input_sha:
+                    raise ValueError("returned receipt does not match the public recording")
+                artifact_hashes = {}
+                for phase in ("supervised", "adapted"):
+                    path = args.output / f"gate-{phase}.npz"
+                    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                    if digest != receipt["artifacts"][phase]["sha256"]:
+                        raise ValueError("returned model does not match its receipt")
+                    artifact_hashes[path.name] = digest
+                plan["artifact_sha256"] = artifact_hashes
                 plan["app_id"] = app.app_id
                 plan["evaluation"] = completion["evaluation"]
                 plan["status"] = "completed"
