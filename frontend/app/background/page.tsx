@@ -1,266 +1,215 @@
+import Image from "next/image";
 import Link from "next/link";
+import { InferenceBudget } from "../../components/InferenceBudget";
 import { SiteNav } from "../../components/SiteNav";
 import "./background.css";
 
 export const metadata = {
   title: "Background · Market Gate Lab",
   description:
-    "An interactive experiment in a slower neural controller guiding fast, deterministic market rules.",
+    "A visual experiment: a slower neural controller guides fast market rules.",
 };
 
-const experts = [
-  {
-    name: "Microprice pressure",
-    detail: "Reads top-of-book size imbalance and the size-weighted price.",
-    className: "pressure",
-  },
-  {
-    name: "Trade-flow impulse",
-    detail: "Measures the direction and intensity of recent aggregate trades.",
-    className: "flow",
-  },
-  {
-    name: "Short reversion",
-    detail: "Responds to price moving away from a recent fair-value estimate.",
-    className: "reversion",
-  },
-];
-
-const questions = [
-  {
-    title: "Does it hold up on richer data?",
-    detail:
-      "Capture longer, varied books and trades. Compare against fixed policies on later periods, then add fees, latency and fill assumptions to evaluation.",
-  },
-  {
-    title: "Could context improve the allocation?",
-    detail:
-      "Test volatility, liquidity and flow-regime features. Keep them only if they improve results across held-out periods, rather than one convenient sample.",
-  },
-  {
-    title: "When should a new model take over?",
-    detail:
-      "Run candidates in shadow beside the current model. Require data checks, baseline comparisons and a rollback path before allowing promotion.",
-  },
-  {
-    title: "What changes with the full order book?",
-    detail:
-      "Build a depth adapter with snapshot recovery, sequence checks and venue-specific validation. Then test whether deeper liquidity adds useful information.",
-  },
-  {
-    title: "Can the two time scales stay separate?",
-    detail:
-      "Move the event and quote path into compiled code, keep the slower controller separate, and measure latency while delayed or missing model updates are injected.",
-  },
+const fastPath = [
+  ["Market events", "Public books + trades, or replay"],
+  ["3 fixed experts", "Pressure · flow · reversion"],
+  ["Weighted mix", "Scores × applied weights"],
+  ["Risk checks", "Fresh data · paper inventory"],
+  ["Synthetic quotes", "Illustrative bid / ask"],
 ];
 
 export default function BackgroundPage() {
   return (
     <main className="shell background-page">
-      <header className="background-header">
-        <Link className="background-brand" href="/">
+      <header className="topbar background-topbar">
+        <Link
+          className="brand brand-home"
+          href="/"
+          aria-label="Market Gate Lab home"
+        >
           <span className="brand-mark" aria-hidden="true">
             MG
           </span>
-          Market Gate Lab
+          <div>
+            <h1>Background</h1>
+            <span className="brand-caption">Market Gate Lab</span>
+          </div>
         </Link>
         <SiteNav current="background" />
       </header>
 
-      <section className="background-hero" aria-labelledby="background-title">
-        <p className="background-kicker">The idea behind the terminal</p>
-        <h1 id="background-title">
-          Fast rules.
-          <br />A slower guide.
-        </h1>
-        <p className="background-lede">
-          Could a neural network help decide which simple market algorithm to
-          trust, and by how much? This lab makes that idea visible, from
-          incoming market data to a synthetic quote.
-        </p>
-        <p className="background-intent">
-          A fun illustration of potential model control over HFT-style rules.
-          Educational simulation; no exchange orders, production-HFT claim or
-          proven alpha.
-        </p>
-        <div className="background-links">
-          <Link className="background-primary" href="/">
-            Explore the live terminal <span aria-hidden="true">↗</span>
-          </Link>
-          <Link href="/training">
-            Open the training lab <span aria-hidden="true">→</span>
-          </Link>
+      <figure className="background-banner">
+        <div className="background-banner-image">
+          <Image
+            src="/images/honse.jpg"
+            alt="Anime character in side profile"
+            fill
+            sizes="(max-width: 1600px) 100vw, 1556px"
+            priority
+          />
         </div>
-      </section>
+        <figcaption>
+          <span>
+            A small experiment in neural control of fast market rules.
+          </span>
+          <a href="https://blog.sakugabooru.com/wp-content/uploads/2025/04/honse.jpg">
+            Image source ↗
+          </a>
+        </figcaption>
+      </figure>
 
-      <section className="background-section" aria-labelledby="route-title">
+      <section className="background-section" aria-labelledby="poc-title">
         <div className="background-section-heading">
-          <p className="background-kicker">01 / The route</p>
-          <h2 id="route-title">The model sets the mix.</h2>
+          <div>
+            <span className="panel-kicker">01 / Running today</span>
+            <h2 id="poc-title">Fast rules. A slower guide.</h2>
+          </div>
           <p>
-            Three fixed algorithms react to accepted book and trade events. The
-            neural gate refreshes their weights once per second by default.
-            Deterministic code checks the result before producing a quote.
+            The network chooses the mix. Every event still passes through
+            deterministic rules.
           </p>
         </div>
         <figure className="background-diagram">
-          <div className="background-controller">
-            <span className="background-kicker">Slower control loop</span>
-            <strong>
-              Recent features → neural gate → allocation + smoothing
-            </strong>
-            <span>
-              30 one-second frames × 10 features · 21,443 model parameters
+          <div className="background-gate-row">
+            <div className="background-gate">
+              <span className="background-lane-label">Slower control loop</span>
+              <div className="background-gate-flow">
+                <span>
+                  30 × 10
+                  <br />
+                  <small>Recent features</small>
+                </span>
+                <b aria-hidden="true">→</b>
+                <span>
+                  Small neural gate
+                  <br />
+                  <small>21,443 parameters</small>
+                </span>
+                <b aria-hidden="true">→</b>
+                <span>
+                  3 weights
+                  <br />
+                  <small>Blended + smoothed</small>
+                </span>
+              </div>
+              <span className="background-gate-note">
+                Optional Live RL adapts the 99-parameter output head; hidden
+                layers stay frozen.
+              </span>
+            </div>
+          </div>
+          <div className="background-weight-link">
+            <span aria-hidden="true">↓</span>
+            <span>Applied weights → weighted mix</span>
+          </div>
+          <ol
+            className="background-route"
+            aria-label="Fast event and quote path"
+          >
+            {fastPath.map(([title, description], index) => (
+              <li
+                key={title}
+                className={index === 2 ? "background-mixer" : undefined}
+              >
+                <span className="background-step">0{index + 1}</span>
+                <strong>{title}</strong>
+                <small>{description}</small>
+              </li>
+            ))}
+          </ol>
+          <figcaption>
+            Small for illustration: three hand-written experts and one neural
+            gate. No exchange orders or demonstrated profitability.
+          </figcaption>
+        </figure>
+      </section>
+
+      <section className="background-section" aria-labelledby="future-title">
+        <div className="background-section-heading">
+          <div>
+            <span className="panel-kicker violet">
+              02 / A possible extension
             </span>
+            <h2 id="future-title">More context. More specialists.</h2>
           </div>
-          <div className="background-control-link">
-            <span aria-hidden="true">↓</span> Applied weights feed the mixer
+          <p>A design to test, not a feature of this POC.</p>
+        </div>
+        <figure className="background-diagram background-future">
+          <div className="background-future-control">
+            <div className="background-flow-node">
+              <span className="background-lane-label">Richer inputs</span>
+              <strong>Venues · cross-market data · inventory</strong>
+            </div>
+            <span className="background-arrow" aria-hidden="true">
+              →
+            </span>
+            <div className="background-flow-node">
+              <span className="background-lane-label">Modular model</span>
+              <strong>Encoders · transformers · other components</strong>
+            </div>
+            <span className="background-arrow" aria-hidden="true">
+              →
+            </span>
+            <div className="background-flow-node">
+              <span className="background-lane-label">Slow controller</span>
+              <strong>Context → allocations</strong>
+            </div>
           </div>
-          <ol className="background-route" aria-label="Event and quote path">
+          <div className="background-future-link">
+            <span>Proposed weights → weighted decisions</span>
+            <span aria-hidden="true">↓</span>
+          </div>
+          <ol
+            className="background-route background-future-route"
+            aria-label="Possible future evaluation path"
+          >
             <li>
-              <span>01</span>
-              <strong>Public data</strong>
-              <small>
-                Books + trades
-                <br />
-                or replay
-              </small>
-            </li>
-            <li>
-              <span>02</span>
-              <strong>Fixed experts</strong>
-              <small>
-                Three bounded
-                <br />
-                directional signals
-              </small>
+              <span className="background-step">EVENTS</span>
+              <strong>N experts / models</strong>
+              <small>Specialists with explicit latency budgets</small>
             </li>
             <li className="background-mixer">
-              <span>03</span>
-              <strong>Weighted mix</strong>
-              <small>
-                Expert scores ×<br />
-                applied weights
-              </small>
+              <span className="background-step">MIX</span>
+              <strong>Weighted decisions</strong>
+              <small>Controller proposes the allocation</small>
             </li>
             <li>
-              <span>04</span>
-              <strong>Risk checks</strong>
-              <small>
-                Data freshness +<br />
-                paper inventory
-              </small>
+              <span className="background-step">CONSTRAIN</span>
+              <strong>Shared risk checks</strong>
+              <small>Deterministic limits remain in control</small>
             </li>
             <li>
-              <span>05</span>
-              <strong>Synthetic quote</strong>
-              <small>
-                Illustrative bid/ask
-                <br />
-                No order route
-              </small>
+              <span className="background-step">VALIDATE</span>
+              <strong>Shadow evaluation</strong>
+              <small>Costs · latency · holdout periods</small>
             </li>
           </ol>
           <figcaption>
-            The gate proposes an allocation. Its influence is blended with
-            uniform weights and smoothed over time. Invalid or stale books and
-            the paper inventory cap can suppress the quote regardless of the
-            network&apos;s output.
+            More parameters do not guarantee a better policy. Compare against
+            simple baselines before promoting a candidate.
           </figcaption>
         </figure>
-        <div className="background-experts">
-          {experts.map((expert) => (
-            <article
-              className={`background-expert ${expert.className}`}
-              key={expert.name}
-            >
-              <h3>{expert.name}</h3>
-              <p>{expert.detail}</p>
-            </article>
-          ))}
-        </div>
       </section>
 
-      <section className="background-section" aria-labelledby="learning-title">
+      <section className="background-section" aria-labelledby="budget-title">
         <div className="background-section-heading">
-          <p className="background-kicker">02 / What changes</p>
-          <h2 id="learning-title">
-            Inference and learning are different views.
-          </h2>
-        </div>
-        <div className="background-learning-grid">
-          <article className="background-card">
-            <span className="background-tag">Live terminal</span>
-            <h3>A small adaptive head</h3>
-            <p>
-              The terminal normally runs inference. Optional Live RL updates 99
-              output weights and biases from a delayed directional reward. Both
-              hidden layers and the three expert rules stay frozen.
-            </p>
-            <p>
-              Updates stay in memory. Pause keeps them; reset or a runtime
-              settings change restores the checkpoint. The network still acts
-              through the same smoothed mixture and deterministic checks.
-            </p>
-          </article>
-          <article className="background-card">
-            <span className="background-tag">Training lab</span>
-            <h3>Recorded data, visible updates</h3>
-            <p>
-              Supervised training and replay policy updates change real model
-              parameters. A later holdout measures expert-proxy utility without
-              updating the model. Training does not automatically replace the
-              running gate.
-            </p>
-            <p>
-              Historical candles use an offline approximation: candle closes
-              stand in for midprices and missing book features are zero. These
-              teaching models cannot be loaded by the live book-based gate.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <aside className="background-boundary" aria-labelledby="boundary-title">
-        <p className="background-kicker">What the screen can tell you</p>
-        <h2 id="boundary-title">A working mechanism is the starting point.</h2>
-        <p>
-          You can inspect the inputs, activations, weights and quote checks.
-          That does not establish an edge. Proxy rewards and paper results omit
-          realistic queue position, partial fills, fees, latency and market
-          impact. Python and public internet feeds make the experiment easy to
-          follow; they do not demonstrate colocated HFT performance.
-        </p>
-      </aside>
-
-      <section className="background-section" aria-labelledby="next-title">
-        <div className="background-section-heading">
-          <p className="background-kicker">03 / Open questions</p>
-          <h2 id="next-title">What would be worth testing next?</h2>
+          <div>
+            <span className="panel-kicker">03 / Try the tradeoff</span>
+            <h2 id="budget-title">How often can the model run?</h2>
+          </div>
           <p>
-            These are future experiments, not capabilities the demo already has.
+            Change the hypothetical inference time. See how much of each update
+            interval it consumes.
           </p>
         </div>
-        <ol className="background-questions">
-          {questions.map((question) => (
-            <li key={question.title}>
-              <h3>{question.title}</h3>
-              <p>{question.detail}</p>
-            </li>
-          ))}
-        </ol>
+        <InferenceBudget />
       </section>
-
       <footer className="background-footer">
-        <span>Follow a signal, then inspect how its weight changes.</span>
-        <div className="background-links">
-          <Link href="/">
-            Live terminal <span aria-hidden="true">↗</span>
-          </Link>
-          <Link href="/training">
-            Training lab <span aria-hidden="true">↗</span>
-          </Link>
-        </div>
+        <span>
+          Educational simulation · Python + public feeds · no production HFT
+          latency claim
+        </span>
+        <Link href="/">Open Live Terminal →</Link>
       </footer>
     </main>
   );
