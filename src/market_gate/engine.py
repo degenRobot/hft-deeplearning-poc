@@ -47,6 +47,8 @@ class MarketEngine:
         self.venue = config.source
         self.reconnects = 0
         self.feed_status = "starting"
+        # Retain feed breaks even when recovery occurs between learner polls.
+        self.feed_continuity_generation = 0
         self.feed_generation = 0
         self.events_processed = 0
         self.late_events_dropped = 0
@@ -81,6 +83,8 @@ class MarketEngine:
             or arrival_ts_ms - event.event_ts_ms > self.config.stale_after_ms
         ):
             self.prior_quote = None
+            if self.last_book_receive_ts_ms is not None:
+                self.feed_continuity_generation += 1
         self.events_processed += 1
         # Close the prior second before this event mutates book/trade state.
         if self.bid > 0 and self.ask > 0:
@@ -139,6 +143,7 @@ class MarketEngine:
                 and event.bid_size + event.ask_size > 0
             )
             if not self.book_valid:
+                self.feed_continuity_generation += 1
                 self.prior_quote = None
                 return None
             self.bid, self.bid_size = event.bid_price, event.bid_size
