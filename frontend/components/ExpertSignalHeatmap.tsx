@@ -54,20 +54,16 @@ export function ExpertSignalHeatmap({
         <span className="flow-small">{events.length} / 64 retained events</span>
       </div>
       <div className="expert-history-heading">
-        <h2>Watch each expert lean buy or sell.</h2>
+        <h2>Expert signal history</h2>
         <span>
           {rate
             ? `${rate} events/s · retained window`
             : "Waiting to measure event rate"}
         </span>
       </div>
-      <p className="flow-footnote">
-        Three hand-coded rules react to the same market events. The neural gate
-        allocates their weights; it does not retrain these rules.{" "}
-        {hasNeural
-          ? "Tiny NN is a trained experimental shadow, excluded from the quote mix."
-          : ""}
-      </p>
+      {hasNeural && (
+        <p className="flow-footnote">Tiny NN stays outside the quote mix.</p>
+      )}
       <div className="expert-history-legend" aria-label="Shared signal scale">
         <span>
           <i className="expert-history-sell" />

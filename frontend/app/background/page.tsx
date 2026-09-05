@@ -312,12 +312,12 @@ export default function BackgroundPage() {
               →
             </span>
             <div className="background-flow-node">
-              <span className="background-lane-label">Slow controller</span>
-              <strong>Context → allocations</strong>
+              <span className="background-lane-label">Multiple gates</span>
+              <strong>Context → strategy · size · spread</strong>
             </div>
           </div>
           <div className="background-future-link">
-            <span>Proposed weights → weighted decisions</span>
+            <span>Proposed controls → bounded decisions</span>
             <span aria-hidden="true">↓</span>
           </div>
           <ol
@@ -330,9 +330,9 @@ export default function BackgroundPage() {
               <small>Specialists with explicit latency budgets</small>
             </li>
             <li className="background-mixer">
-              <span className="background-step">MIX</span>
-              <strong>Weighted decisions</strong>
-              <small>Controller proposes the allocation</small>
+              <span className="background-step">ADAPT</span>
+              <strong>Multiple outputs</strong>
+              <small>Strategy selection · quote size · spread</small>
             </li>
             <li>
               <span className="background-step">CONSTRAIN</span>
