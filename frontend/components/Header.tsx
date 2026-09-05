@@ -43,7 +43,10 @@ export function Header({
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark">MG</span>
-          <span>Market Gate Lab</span>
+          <div>
+            <h1>Market Gate Lab</h1>
+            <span className="brand-caption">Two-speed model terminal</span>
+          </div>
         </div>
         <div className="topbar-actions">
           <ConnectionPill status={status} />
@@ -53,18 +56,6 @@ export function Header({
           </button>
         </div>
       </header>
-      <section className="intro">
-        <div>
-          <span className="eyebrow">
-            Educational simulation · event speed + {cadenceLabel}
-          </span>
-          <h1>Every tick. Two speeds.</h1>
-          <p>
-            Watch market events become signals, then watch a slower neural gate
-            change the mix.
-          </p>
-        </div>
-      </section>
       <div
         className={`stream-banner ${status}`}
         role="status"
@@ -78,7 +69,9 @@ export function Header({
           {symbol} ·{" "}
           {source === "binance" ? "Binance public" : "Replay fixture"}
         </span>
-        <span className="stream-endpoint">{apiUrl}</span>
+        <span className="stream-endpoint" title={apiUrl}>
+          {cadenceLabel} · educational simulation
+        </span>
       </div>
     </>
   );

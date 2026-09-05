@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { ActivationNetwork } from "./ActivationNetwork";
+import { CandleChart } from "./CandleChart";
 import type { CSSProperties } from "react";
 import type { MarketGateState } from "../lib/types";
 import {
   EXPERT_KEYS,
   FEATURE_ROWS,
+  FEATURE_HELP,
   eventTime,
   signed,
   type VisualEvent,
@@ -18,7 +21,7 @@ const inputs = [
   "recent buy / sell volume",
   "price vs recent fair value",
 ];
-const colors = ["#bade79", "#74cfca", "#bba3ec"];
+const colors = ["#41d6b2", "#62c2ed", "#a99bff"];
 const price = (value: number) =>
   value.toLocaleString("en-US", {
     minimumFractionDigits: 2,
@@ -53,7 +56,7 @@ function EventTape({ events }: { events: VisualEvent[] }) {
   return (
     <article className="flow-card tape-card">
       <div className="flow-card-heading">
-        <span className="flow-kicker">01 / MARKET INPUT</span>
+        <span className="flow-kicker">MARKET / EVENT TAPE</span>
         <button
           className="flow-toggle"
           aria-pressed={tradesOnly}
@@ -62,7 +65,7 @@ function EventTape({ events }: { events: VisualEvent[] }) {
           {tradesOnly ? "Trades only" : "Book + trades"}
         </button>
       </div>
-      <h2>The event stream</h2>
+      <h2>Event stream</h2>
       <div className="tape-columns">
         <span>TIME · UTC</span>
         <span>TYPE</span>
@@ -130,12 +133,16 @@ function FeatureWindow({
           {!visual
             ? "WAITING FOR FEATURE DATA"
             : neural
-              ? "INPUT TO LAST INFERENCE"
+              ? "01 / INPUT TO LAST INFERENCE"
               : "FEATURE BUFFER / BASELINE IGNORES IT"}
         </span>
         <span className="flow-small">{frames.length}/30 frames</span>
       </div>
-      <h3>Ticks → one-second features</h3>
+      <h3>What the model sees</h3>
+      <p className="input-explanation">
+        Each column is one observed second; each row describes price, liquidity
+        or trading activity. The last 30 frames become 300 model inputs.
+      </p>
       <div
         className="heatmap"
         role="img"
@@ -143,7 +150,7 @@ function FeatureWindow({
       >
         {FEATURE_ROWS.map(([label, scale], r) => (
           <div className="heat-row" key={label}>
-            <span>{label}</span>
+            <span title={FEATURE_HELP[r]}>{label}</span>
             <div>
               {Array.from({ length: 30 }, (_, c) => {
                 const frame = frames[c - padding];
@@ -155,7 +162,7 @@ function FeatureWindow({
                     style={
                       frame
                         ? {
-                            background: v! < 0 ? "#bba3ec" : "#bade79",
+                            background: v! < 0 ? "#a99bff" : "#41d6b2",
                             opacity:
                               0.15 + Math.min(1, Math.abs(v!) / scale) * 0.85,
                           }
@@ -182,12 +189,15 @@ function FeatureWindow({
         has its own color scale. Green is positive; violet is negative.
       </p>
       <details className="feature-values">
-        <summary>Inspect latest frame values</summary>
+        <summary>Input guide &amp; latest values</summary>
         {frames.length ? (
           <dl>
             {FEATURE_ROWS.map(([label], i) => (
               <div key={label}>
-                <dt>{label}</dt>
+                <dt>
+                  {label}
+                  <small>{FEATURE_HELP[i]}</small>
+                </dt>
                 <dd>{frames.at(-1)!.values[i].toPrecision(5)}</dd>
               </div>
             ))}
@@ -196,77 +206,6 @@ function FeatureWindow({
           <p className="flow-footnote">No observed frame yet.</p>
         )}
       </details>
-    </div>
-  );
-}
-
-function Network({
-  revision,
-  mode,
-}: {
-  revision: number;
-  mode?: MarketGateState["gate"]["mode"];
-}) {
-  const neural = mode === "neural";
-  const layers = [6, 8, 5, 3];
-  return (
-    <div className={`network-model ${neural ? "" : "network-bypassed"}`}>
-      <span className="flow-kicker">
-        {!mode
-          ? "WAITING FOR POLICY"
-          : neural
-            ? "SLOW NEURAL GATE"
-            : `${mode.toUpperCase()} POLICY`}
-      </span>
-      <h3>{!mode || neural ? "The bigger model" : "Neural gate bypassed"}</h3>
-      <div className="network-pulse" key={revision}>
-        <svg
-          viewBox="0 0 270 150"
-          role="img"
-          aria-label="Schematic of the 300 input, 64 hidden, 32 hidden, 3 output neural network; dots are representative, not neuron activations"
-        >
-          {layers
-            .slice(0, -1)
-            .flatMap((n, l) =>
-              Array.from({ length: n }, (_, a) =>
-                Array.from({ length: layers[l + 1] }, (_, b) => (
-                  <line
-                    key={`${l}-${a}-${b}`}
-                    x1={24 + l * 74}
-                    y1={22 + (a * 104) / (n - 1)}
-                    x2={24 + (l + 1) * 74}
-                    y2={22 + (b * 104) / (layers[l + 1] - 1)}
-                  />
-                )),
-              ),
-            )}
-          {layers.flatMap((n, l) =>
-            Array.from({ length: n }, (_, i) => (
-              <circle
-                key={`${l}-${i}`}
-                cx={24 + l * 74}
-                cy={22 + (i * 104) / (n - 1)}
-                r={l === 3 ? 6 : 4}
-                style={{ fill: l === 3 ? colors[i] : undefined }}
-              />
-            )),
-          )}
-        </svg>
-      </div>
-      <div className="network-sizes">
-        <span>300</span>
-        <span>64</span>
-        <span>32</span>
-        <span>3</span>
-      </div>
-      <p className="flow-footnote">
-        21,443 parameters · network schematic.{" "}
-        {neural
-          ? "Inference, not live retraining."
-          : mode
-            ? "Selected baseline supplies the weights."
-            : "Waiting for a fresh snapshot."}
-      </p>
     </div>
   );
 }
@@ -329,6 +268,93 @@ export function SignalFlow({
           {motion ? "Reduce motion" : "Enable motion"}
         </button>
       </div>
+      <div className="terminal-section-label">
+        <span>MODEL CONTROL</span>
+        <span>
+          30 × 10 inputs → neural gate → expert allocation ·{" "}
+          {ready ? `${state.gate.cadence_ms} ms cadence` : "waiting"}
+        </span>
+      </div>
+      <div className="slow-lane">
+        <FeatureWindow visual={visual} neural={neural} />
+        <ActivationNetwork
+          activations={neural ? visual?.activations || null : null}
+          outputs={EXPERT_KEYS.map((id) => visual?.proposed[id] || 0)}
+          revision={active ? state.gate.revision : 0}
+          mode={active ? state.gate.mode : undefined}
+        />
+        <div className="weight-output">
+          <span className="flow-kicker">03 / WEIGHT ALLOCATION</span>
+          <h3>Control the fast experts</h3>
+          <div className="weight-head">
+            <span>Expert</span>
+            <span>Proposed</span>
+            <span>Applied</span>
+          </div>
+          {EXPERT_KEYS.map((id, i) => (
+            <div className="output-weight" key={id}>
+              <div className="weight-inline-head">
+                <span>Expert</span>
+                <span>Proposed</span>
+                <span>Applied</span>
+              </div>
+              <div className="weight-values">
+                <span style={{ color: colors[i] }}>{labels[i]}</span>
+                <span>
+                  {active ? `${(visual!.proposed[id] * 100).toFixed(1)}%` : "—"}
+                </span>
+                <b>
+                  {active
+                    ? `${(state.gate.weights[id] * 100).toFixed(1)}%`
+                    : "—"}
+                </b>
+              </div>
+              <div className="weight-track">
+                <i
+                  style={{
+                    width: `${active ? state.gate.weights[id] * 100 : 0}%`,
+                    background: colors[i],
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+          <p className="flow-footnote">
+            {active
+              ? `${Math.round(visual!.influence * 100)}% policy influence + smoothing`
+              : "Waiting for model telemetry"}
+          </p>
+          <div className="refresh-track">
+            <i style={{ width: `${progress}%` }} />
+          </div>
+          <div className="refresh-label">
+            <span>Update #{active ? state.gate.revision : "—"}</span>
+            <span>
+              {active ? `${Math.round(nextRefresh)} ms to cadence` : "—"}
+            </span>
+          </div>
+          <p className="flow-footnote">
+            Applied weights feed the matching expert below. Refresh waits for
+            the next market event.
+          </p>
+        </div>
+      </div>
+      <div className="model-to-experts">
+        <span>
+          ↓ Applied allocation controls how much each fast signal contributes
+        </span>
+        <div>
+          {EXPERT_KEYS.map((id, i) => (
+            <span key={id} style={{ color: colors[i] }}>
+              {labels[i]}{" "}
+              <b>
+                {active ? `${(state.gate.weights[id] * 100).toFixed(1)}%` : "—"}
+              </b>
+            </span>
+          ))}
+        </div>
+      </div>
+
       <div
         className="route-map"
         aria-label="Market events feed fast experts and one-second feature frames. The neural gate supplies expert weights. Mixed signals pass risk checks before a synthetic quote."
@@ -347,10 +373,9 @@ export function SignalFlow({
         <i />
       </div>
       <div className="fast-lane">
-        <EventTape events={events} />
         <article className="flow-card experts-card">
           <div className="flow-card-heading">
-            <span className="flow-kicker">02 / FAST SIGNALS</span>
+            <span className="flow-kicker">FAST PATH / EVERY EVENT</span>
             <span className="speed-badge">EVERY EVENT</span>
           </div>
           <h2>Three small experts</h2>
@@ -358,48 +383,50 @@ export function SignalFlow({
             Deterministic signals · traces show recent events on a −1 to +1
             scale
           </p>
-          {EXPERT_KEYS.map((id, i) => {
-            const expert = state.experts.find((e) => e.id === id);
-            return (
-              <div
-                className="visual-expert"
-                key={id}
-                style={{ "--expert-color": colors[i] } as CSSProperties}
-              >
-                <div className="expert-line">
-                  <span>
-                    <i />
-                    {labels[i]}
-                  </span>
-                  <strong>
-                    {ready && expert ? signed(expert.score) : "—"}
-                  </strong>
+          <div className="expert-cards">
+            {EXPERT_KEYS.map((id, i) => {
+              const expert = state.experts.find((e) => e.id === id);
+              return (
+                <div
+                  className="visual-expert"
+                  key={id}
+                  style={{ "--expert-color": colors[i] } as CSSProperties}
+                >
+                  <div className="expert-line">
+                    <span>
+                      <i />
+                      {labels[i]}
+                    </span>
+                    <strong>
+                      {ready && expert ? signed(expert.score) : "—"}
+                    </strong>
+                  </div>
+                  <div className="expert-subline">
+                    <span>{inputs[i]}</span>
+                    <span>
+                      ×{" "}
+                      {ready && expert
+                        ? `${(expert.weight * 100).toFixed(1)}%`
+                        : "—"}
+                    </span>
+                  </div>
+                  <Spark
+                    values={events.map((e) => e.scores[i])}
+                    color={colors[i]}
+                  />
+                  <div className="contribution-line">
+                    <span>weighted contribution</span>
+                    <b>
+                      {ready && expert ? signed(expert.contribution, 3) : "—"}
+                    </b>
+                  </div>
                 </div>
-                <div className="expert-subline">
-                  <span>{inputs[i]}</span>
-                  <span>
-                    ×{" "}
-                    {ready && expert
-                      ? `${(expert.weight * 100).toFixed(1)}%`
-                      : "—"}
-                  </span>
-                </div>
-                <Spark
-                  values={events.map((e) => e.scores[i])}
-                  color={colors[i]}
-                />
-                <div className="contribution-line">
-                  <span>weighted contribution</span>
-                  <b>
-                    {ready && expert ? signed(expert.contribution, 3) : "—"}
-                  </b>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </article>
         <article className="flow-card mix-card">
-          <span className="flow-kicker">03 / COMBINE + GUARD</span>
+          <span className="flow-kicker">SIGNAL / RISK</span>
           <h2>One quote signal</h2>
           <div
             className={`mixed-number ${total < 0 ? "negative" : "positive"}`}
@@ -450,69 +477,9 @@ export function SignalFlow({
           </p>
         </article>
       </div>
-      <div className="slow-divider">
-        <span>↓ aggregate events</span>
-        <span className="slow-clock">
-          SLOW PATH ·{" "}
-          {ready ? `${state.gate.cadence_ms} ms configured cadence` : "waiting"}
-        </span>
-        <span>↑ weights feed the fast mix</span>
-      </div>
-      <div className="slow-lane">
-        <FeatureWindow visual={visual} neural={neural} />
-        <Network
-          revision={active ? state.gate.revision : 0}
-          mode={active ? state.gate.mode : undefined}
-        />
-        <div className="weight-output">
-          <span className="flow-kicker">OUTPUT / EXPERT WEIGHTS</span>
-          <h3>Change the mix</h3>
-          <div className="weight-head">
-            <span>Expert</span>
-            <span>Proposed</span>
-            <span>Applied</span>
-          </div>
-          {EXPERT_KEYS.map((id, i) => (
-            <div className="output-weight" key={id}>
-              <div>
-                <span style={{ color: colors[i] }}>{labels[i]}</span>
-                <span>
-                  {active ? `${(visual!.proposed[id] * 100).toFixed(1)}%` : "—"}
-                </span>
-                <b>
-                  {active
-                    ? `${(state.gate.weights[id] * 100).toFixed(1)}%`
-                    : "—"}
-                </b>
-              </div>
-              <div className="weight-track">
-                <i
-                  style={{
-                    width: `${active ? state.gate.weights[id] * 100 : 0}%`,
-                    background: colors[i],
-                  }}
-                />
-              </div>
-            </div>
-          ))}
-          <p className="flow-footnote">
-            {active
-              ? `${Math.round(visual!.influence * 100)}% policy influence + smoothing`
-              : "Waiting for model telemetry"}
-          </p>
-          <div className="refresh-track">
-            <i style={{ width: `${progress}%` }} />
-          </div>
-          <div className="refresh-label">
-            <span>Update #{active ? state.gate.revision : "—"}</span>
-            <span>
-              {active ? `${Math.round(nextRefresh)} ms to cadence` : "—"}
-            </span>
-          </div>
-          <p className="flow-footnote">
-            Refresh occurs on the next market event after the cadence is due.
-          </p>
-        </div>
+      <div className="market-lane">
+        <CandleChart candles={visual?.candles || []} symbol={state.symbol} />
+        <EventTape events={events} />
       </div>
       {!visual && ready ? (
         <p className="flow-empty">

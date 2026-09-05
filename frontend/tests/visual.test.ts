@@ -53,14 +53,15 @@ describe("visual telemetry", () => {
       parseVisual({ ...visual, events: [visual.events[0], visual.events[0]] }),
     ).toBeNull();
   });
-  it("shows observed events and zero padding without claiming neuron activations", () => {
+  it("shows observed events and padding with no invented activations", () => {
     const state = { ...EMPTY_STATE, visual };
     const html = renderToStaticMarkup(
       createElement(SignalFlow, { state, ready: true, nextRefresh: 300 }),
     );
     expect(html).toContain("12,345.67");
     expect(html).toContain("29 zero-padded frames");
-    expect(html).toContain("not neuron activations");
+    expect(html).toContain("Waiting for activation telemetry from this pass");
+    expect(html).not.toContain("data-activation=");
     expect(html).toContain("50.0%");
     expect(html).toContain("Inference, not live retraining");
   });
@@ -87,6 +88,6 @@ describe("visual telemetry", () => {
       createElement(SignalFlow, { state, ready: true, nextRefresh: 0 }),
     );
     expect(html).toContain("Neural gate bypassed");
-    expect(html).not.toContain("Inference, not live retraining");
+    expect(html).not.toContain("data-activation=");
   });
 });
