@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -40,13 +41,15 @@ class SnapshotWriter:
             self.lock.close()
             raise ValueError("another training run is active") from None
         self.state = empty_snapshot() | dict(run_id=run_id, status="running", backend=backend)
+        self.mutex = threading.RLock()
         self.publish()
 
     def publish(self):
-        self.state["updated_at"] = datetime.now(UTC).isoformat()
-        temporary = self.path.with_suffix(f".{os.getpid()}.tmp")
-        temporary.write_text(json.dumps(self.state, allow_nan=False), encoding="utf-8")
-        temporary.replace(self.path)
+        with self.mutex:
+            self.state["updated_at"] = datetime.now(UTC).isoformat()
+            temporary = self.path.with_suffix(f".{os.getpid()}.tmp")
+            temporary.write_text(json.dumps(self.state, allow_nan=False), encoding="utf-8")
+            temporary.replace(self.path)
 
     def accept(self, event: dict):
         if event["kind"] == "dataset":

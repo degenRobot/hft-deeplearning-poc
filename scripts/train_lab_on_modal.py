@@ -10,6 +10,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -120,6 +121,15 @@ def main():
 
     writer = SnapshotWriter(ROOT / "artifacts/training-live.json", args.output.name, "modal")
     args.output.mkdir(parents=True, exist_ok=False)
+    heartbeat_stop = threading.Event()
+
+    def heartbeat():
+        # Snapshot freshness reports the local monitor's liveness, including image startup.
+        while not heartbeat_stop.wait(2):
+            writer.publish()
+
+    heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
+    heartbeat_thread.start()
     try:
         with tempfile.TemporaryDirectory(prefix="training-source-") as temporary:
             staging = Path(temporary)
@@ -178,6 +188,8 @@ def main():
         writer.finish("failed", "Modal run failed; see the local command log")
         raise
     finally:
+        heartbeat_stop.set()
+        heartbeat_thread.join(timeout=3)
         writer.close()
 
 

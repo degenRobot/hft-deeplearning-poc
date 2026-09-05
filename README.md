@@ -102,6 +102,11 @@ See [the frozen contract](docs/experiment-contract.md) and
 
 ## Run a local reproducibility example
 
+For the new public-data supervised + RL training view, open **`/training`**.
+It displays actual input windows, activations, gradients and weight changes while a
+bounded example runs. See [the training lab guide](docs/training-lab.md) for data,
+temporal splits, local replay updates and the one-shot Modal runner.
+
 ```sh
 uv sync --extra dev --extra training
 make train RUN_DIR=artifacts/my-first-run
