@@ -33,6 +33,7 @@ class LiveLearner:
         self.pending = None
         self.next_sample_ms = 0
         self.valid_since_ms = 0
+        self.feed_continuity_generation = engine.feed_continuity_generation
         self.updates = 0
         self.discarded = 0
         self.baseline = 0.0
@@ -92,6 +93,11 @@ class LiveLearner:
         if not self.enabled:
             return
         e = self.engine
+        if e.feed_continuity_generation != self.feed_continuity_generation:
+            self.feed_continuity_generation = e.feed_continuity_generation
+            self.discarded += int(self.pending is not None)
+            self.pending = None
+            self.valid_since_ms = now
         if not self._fresh(now):
             self.discarded += int(self.pending is not None)
             self.pending = None
@@ -119,14 +125,15 @@ class LiveLearner:
             if now < sample["selected_ms"] + 5000:
                 self.stage = "observing_reward"
                 return
+            if now > sample["selected_ms"] + 6500:
+                self.pending = None
+                self.discarded += 1
+                self.stage = "waiting_for_feed"
+                return
             # Require a new book actually received after the outcome deadline.
             if e.last_book_receive_ts_ms < sample["selected_ms"] + 5000:
                 return
             self.pending = None
-            if now > sample["selected_ms"] + 6500:
-                self.discarded += 1
-                self.stage = "waiting_for_feed"
-                return
             try:
                 self._update(sample, now)
             except (ValueError, FloatingPointError, OverflowError):

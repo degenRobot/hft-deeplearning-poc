@@ -32,6 +32,7 @@ def engine_at(now=100_000):
             symbol="BTCUSDT",
         ),
         feed_status="running",
+        feed_continuity_generation=0,
         book_valid=True,
         decision=SimpleNamespace(scores=dict.fromkeys(EXPERT_IDS, 1.0)),
         last_book_event_ts_ms=now,
@@ -337,4 +338,96 @@ def test_delayed_book_event_cannot_teach_while_terminal_considers_it_stale():
     assert learner.updates == 0
     assert learner.pending is None
     assert learner.stage == "waiting_for_feed"
+    assert_weights_equal(engine, original)
+
+
+@pytest.mark.parametrize("failure", ["invalid_book", "stale_book"])
+def test_engine_feed_break_between_ticks_invalidates_pending(failure, monkeypatch):
+    from market_gate.config import LabConfig
+    from market_gate.contracts import BookEvent
+
+    monkeypatch.setattr("market_gate.live_learning.time.time", lambda: 70.0)
+    config = LabConfig(stale_after_ms=150 if failure == "stale_book" else 2500)
+    engine = MarketEngine(config, Path(__file__).parents[1] / "models/gate-demo.npz")
+    engine.feed_status = "running"
+    learner = LiveLearner(engine)
+    learner.configure({"enabled": True})
+
+    def book(timestamp, bid=99.99, ask=100.01):
+        engine.process(
+            BookEvent("replay", "BTCUSDT", timestamp, timestamp, timestamp, bid, 2, ask, 1),
+            arrival_ts_ms=timestamp,
+        )
+
+    for timestamp in range(70_000, 100_001, 100):
+        book(timestamp)
+    learner.tick(100_000)
+    assert learner.pending is not None
+    original = weights(engine)
+    if failure == "invalid_book":
+        book(100_050, bid=101, ask=100)
+        assert not engine.book_valid
+        book(100_100)
+    else:
+        # The book expires at 100151 and recovers before the next 200 ms poll.
+        book(100_190)
+    learner.tick(100_200)
+    assert learner.pending is None
+    assert learner.discarded == 1
+    assert learner.stage == "warming_up"
+    assert_weights_equal(engine, original)
+    for timestamp in range(100_300, 105_001, 100):
+        book(timestamp)
+    learner.tick(105_000)
+    assert learner.updates == 0
+    assert learner.pending is None
+    assert_weights_equal(engine, original)
+
+
+def test_expired_sample_is_discarded_while_waiting_for_outcome_book():
+    engine, learner = start()
+    engine.config.stale_after_ms = 60_000
+    original = weights(engine)
+    advance(engine, 110_000)
+    engine.last_book_receive_ts_ms = engine.last_book_event_ts_ms = 104_000
+    learner.tick(110_000)
+    assert learner.pending is None
+    assert learner.discarded == 1
+    assert learner.updates == 0
+    assert_weights_equal(engine, original)
+
+
+def test_runtime_reconnect_between_ticks_invalidates_pending(monkeypatch):
+    import asyncio
+
+    from market_gate.config import LabConfig
+    from market_gate.runtime import MarketRuntime
+
+    engine, learner = start()
+    original = weights(engine)
+
+    class ReconnectingFeed:
+        reconnects = 1
+
+        def __init__(self, symbol, on_status):
+            self.on_status = on_status
+
+        async def events(self):
+            self.on_status("reconnecting")
+            self.on_status("running")
+            # An empty async iterator exercises status callbacks without network IO.
+            for event in ():
+                yield event
+
+    monkeypatch.setattr("market_gate.runtime.BinancePublicFeed", ReconnectingFeed)
+    root = Path(__file__).parents[1]
+    runtime = MarketRuntime(
+        LabConfig(source="binance"), root / "models/gate-demo.npz", root / "fixtures/replay.jsonl"
+    )
+    asyncio.run(runtime._run_feed(engine))
+    assert engine.feed_status == "running"
+    learner.tick(100_200)
+    assert learner.pending is None
+    assert learner.discarded == 1
+    assert learner.stage == "warming_up"
     assert_weights_equal(engine, original)

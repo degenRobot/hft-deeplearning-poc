@@ -110,6 +110,7 @@ class MarketRuntime:
             await asyncio.sleep(0.2)
 
     def _record_feed_failure(self, engine: MarketEngine, error: Exception) -> None:
+        engine.feed_continuity_generation += 1
         engine.feed_status = "failed"
         # Keep browser telemetry useful without exposing local paths or payloads.
         if engine is self.engine:
@@ -148,6 +149,8 @@ class MarketRuntime:
             else:
 
                 def update_feed_status(status: str) -> None:
+                    if status != "running" and engine.feed_status == "running":
+                        engine.feed_continuity_generation += 1
                     engine.feed_status = status
                     engine.reconnects = feed.reconnects
 
