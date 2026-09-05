@@ -47,7 +47,8 @@ for step in snapshot["history"]:
     onehot[step["action"]] = 1
     d = (p - onehot) * ((step["reward"] - baseline) / 5)
     dw = b[:, None] * d[None, :]
-    norm = np.sqrt(np.sum(dw.astype(float) ** 2) + np.sum(d.astype(float) ** 2))
+    # Match the runtime scalar type so clipping retains float32 head arithmetic.
+    norm = float(np.sqrt(np.sum(dw.astype(float) ** 2) + np.sum(d.astype(float) ** 2)))
     scale = min(1, 1 / max(norm, 1e-12))
     weights["w3"] = weights["w3"] - 0.001 * scale * dw
     weights["b3"] = weights["b3"] - 0.001 * scale * d
