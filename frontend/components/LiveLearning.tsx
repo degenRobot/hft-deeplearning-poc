@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { API_DEFAULT } from "../lib/connection";
 import "./trainingExtras.css";
+import { LearningActivity } from "./LearningActivity";
 const API = (process.env.NEXT_PUBLIC_API_URL || API_DEFAULT).replace(/\/$/, "");
 export type LearningStatus = {
   enabled: boolean;
@@ -149,15 +150,6 @@ export function useLiveLearning() {
   return { data, error, pending, change };
 }
 export type LearningController = ReturnType<typeof useLiveLearning>;
-const stages: Record<string, string> = {
-  off: "Off",
-  paused: "Paused · weights retained",
-  warming_up: "Collecting 30 fresh frames",
-  waiting_for_feed: "Waiting for fresh feed",
-  observing_reward: "Observing the next 5 seconds",
-  waiting_for_interval: "Waiting for next example",
-  failed: "Learning stopped",
-};
 export function LiveLearningPanel({
   learning,
   lab = false,
@@ -177,7 +169,7 @@ export function LiveLearningPanel({
           <h2>
             Live RL{" "}
             <span className={data?.enabled ? "learning-on" : ""}>
-              {data?.enabled ? "ON" : "OFF"}
+              {!data ? "UNKNOWN" : data.enabled ? "ON" : "OFF"}
             </span>
           </h2>
         </div>
@@ -219,55 +211,7 @@ export function LiveLearningPanel({
           </button>
         </div>
       </div>
-      <div className="learning-cycle" aria-label="Learning cycle">
-        <span>30s of inputs</span>
-        <b>→</b>
-        <span>Choose expert</span>
-        <b>→</b>
-        <span
-          className={data?.stage === "observing_reward" ? "learning-on" : ""}
-        >
-          Observe 5s
-        </span>
-        <b>→</b>
-        <span>Update 99 weights ↻</span>
-      </div>
-      <div className="learning-status" role="status">
-        <strong>
-          {pending
-            ? "Applying…"
-            : error ||
-              data?.error ||
-              (data ? (stages[data.stage] ?? data.stage) : "Connecting…")}
-        </strong>
-        {data && (
-          <>
-            <span>
-              {data.source === "binance"
-                ? "Binance WebSocket"
-                : "Replay fixture"}{" "}
-              · {data.symbol}
-            </span>
-            <span>{data.updates} updates</span>
-            <span>Weight Δ {data.weight_delta.toExponential(2)}</span>
-            {data.next_update_in_seconds !== null && data.enabled && (
-              <span>
-                Next update ~{Math.ceil(data.next_update_in_seconds)}s
-              </span>
-            )}
-          </>
-        )}
-      </div>
-      {data?.enabled && data.next_update_in_seconds !== null && (
-        <progress
-          aria-label="Next live RL update"
-          value={Math.max(
-            0,
-            data.interval_seconds - data.next_update_in_seconds,
-          )}
-          max={data.interval_seconds}
-        />
-      )}
+      <LearningActivity data={data} error={error} pending={pending} />
       <p className="flow-footnote">
         Learns the live gate’s output head; hidden layers stay frozen. Pause
         retains weights; reset or feed changes restore the demo checkpoint.{" "}
