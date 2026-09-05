@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ConnectionStatus, FeedSource } from "../lib/types";
 
 export function ConnectionPill({ status }: { status: ConnectionStatus }) {
@@ -49,6 +50,9 @@ export function Header({
           </div>
         </div>
         <div className="topbar-actions">
+          <Link className="terminal-nav" href="/training">
+            Training lab ↗
+          </Link>
           <ConnectionPill status={status} />
           <span className="read-only">READ ONLY</span>
           <button className="button ghost" onClick={onReconnect}>

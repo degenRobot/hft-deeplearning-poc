@@ -16,7 +16,7 @@ from .runtime import MarketRuntime
 from .training_service import TrainingService
 
 ALLOWED_MUTATION_ORIGINS = {
-    f"http://{host}:{port}" for host in ("localhost", "127.0.0.1") for port in (3000, 3001)
+    f"http://{host}:{port}" for host in ("localhost", "127.0.0.1") for port in (3000, 3010)
 }
 TRAINING_RECEIPT_PATH = Path(__file__).parents[2] / "artifacts" / "training-demo.json"
 

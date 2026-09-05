@@ -67,3 +67,30 @@ def test_training_api_rejects_hostile_origin_without_starting(monkeypatch):
         asgi_request(app, "POST", "/training/live/start", origin="https://evil.example")
     )
     assert status == 403
+
+
+def test_new_run_does_not_show_previous_completed_snapshot(tmp_path, monkeypatch):
+    service = TrainingService(tmp_path)
+    writer = SnapshotWriter(service.path, "old", "local")
+    writer.finish("completed")
+    writer.close()
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data/training-public.jsonl").write_text("public recording")
+
+    class StartingProcess:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def poll(self):
+            return None
+
+    monkeypatch.setattr("market_gate.training_service.subprocess.Popen", StartingProcess)
+    started = service.start()
+    assert started["run_id"] != "old"
+    assert service.snapshot() == started
+    with pytest.raises(ValueError, match="another training"):
+        service.start()
+    writer = SnapshotWriter(service.path, started["run_id"], "local")
+    assert service.snapshot()["run_id"] == started["run_id"]
+    assert service.pending is None
+    writer.close()
