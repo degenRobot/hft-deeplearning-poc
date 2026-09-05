@@ -419,3 +419,78 @@ describe("Training Lab manual and live telemetry", () => {
     ).toHaveLength(1);
   });
 });
+
+describe("Live RL activity diagram", () => {
+  it.each([
+    ["warming_up", "Collecting inputs", "Collect inputs"],
+    ["observing_reward", "Observing the outcome", "Observe the reward"],
+    ["waiting_for_feed", "Waiting for fresh market data", "Collect inputs"],
+    ["waiting_for_interval", "Waiting for the next example", null],
+  ])(
+    "reports %s without inventing an optimizer stage",
+    async (stage, label, active) => {
+      await mount(
+        createElement(LiveLearningPanel, {
+          learning: {
+            data: learningWire({
+              enabled: true,
+              stage: stage!,
+              updates: 3,
+              next_update_in_seconds: 2.4,
+            }),
+            error: "",
+            pending: false,
+            change: vi.fn(),
+          },
+        }),
+      );
+      const root = renderer!.root;
+      expect(
+        root
+          .findByProps({ role: "status" })
+          .findAllByType("span")
+          .some((node) => node.children.includes(label!)),
+      ).toBe(true);
+      const current = root.findAllByProps({ "aria-current": "step" });
+      expect(current).toHaveLength(active ? 1 : 0);
+      if (active)
+        expect(current[0].findByType("strong").children).toEqual([active]);
+      const metrics = root.findByProps({
+        "aria-label": "Live RL activity metrics",
+      });
+      expect(metrics.findAllByType("dd")[1].children).toEqual([
+        stage === "observing_reward" || stage === "waiting_for_interval"
+          ? "~3s"
+          : "—",
+      ]);
+    },
+  );
+  it("clears activity and countdown on errors and while applying settings", async () => {
+    for (const patch of [
+      { error: "Live RL connection timed out", pending: false },
+      { error: "", pending: true },
+    ]) {
+      await mount(
+        createElement(LiveLearningPanel, {
+          learning: {
+            data: learningWire({
+              enabled: true,
+              stage: "observing_reward",
+              next_update_in_seconds: 2,
+            }),
+            ...patch,
+            change: vi.fn(),
+          },
+        }),
+      );
+      expect(
+        renderer!.root.findAllByProps({ "aria-current": "step" }),
+      ).toHaveLength(0);
+      const metrics = renderer!.root.findByProps({
+        "aria-label": "Live RL activity metrics",
+      });
+      expect(metrics.findAllByType("dd")[1].children).toEqual(["—"]);
+      await act(async () => renderer!.unmount());
+    }
+  });
+});
