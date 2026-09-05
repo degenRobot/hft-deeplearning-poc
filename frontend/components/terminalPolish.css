@@ -36,6 +36,10 @@
   align-items: center;
   gap: 8px;
 }
+.neural-shadow-title .heading-with-tip {
+  flex: 1;
+  min-width: 0;
+}
 .context-tip {
   position: static;
   display: inline-flex;
