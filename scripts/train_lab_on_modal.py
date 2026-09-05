@@ -147,7 +147,9 @@ def main():
             for name in SOURCE_FILES:
                 image = image.add_local_file(staging / name, f"/training-src/market_gate/{name}")
             app = modal.App("market-gate-training-example", include_source=False)
-            remote = app.function(image=image, serialized=True, **CAPS)(remote_training)
+            # Modal generators reject even retries=0; omission means no retry policy.
+            generator_caps = {key: value for key, value in CAPS.items() if key != "retries"}
+            remote = app.function(image=image, serialized=True, **generator_caps)(remote_training)
             with modal.enable_output(), app.run():
                 completion = None
                 artifact_count = 0

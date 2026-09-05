@@ -296,9 +296,15 @@ function Evaluation({
     <article className="flow-card">
       <span className="flow-kicker">FROZEN HOLDOUT / SAME LATER EXAMPLES</span>
       <h2>Does learning beat simple baselines?</h2>
+      {evaluation && new Set(Object.values(evaluation)).size === 1 && (
+        <p className="input-explanation">
+          Every policy has the same mean reward in this holdout. This sample
+          provides no evidence that either trained model beats the baselines.
+        </p>
+      )}
       {evaluation ? (
         <table className="training-table">
-          <caption>Mean delayed proxy reward · higher is better</caption>
+          <caption>Mean delayed proxy reward in bps · higher is better</caption>
           <thead>
             <tr>
               <th scope="col">Policy</th>
