@@ -146,6 +146,34 @@ def create_app(config_path: str | Path = "configs/demo.toml") -> FastAPI:
     async def training_settings() -> dict:
         return training_service.settings()
 
+    @app.get("/training/data")
+    async def public_training_data() -> dict:
+        return await asyncio.to_thread(training_service.datasets.snapshot)
+
+    @app.post("/training/data/start")
+    async def start_public_capture(request: Request) -> dict:
+        require_allowed_mutation_origin(request)
+        payload = await training_json(request)
+        if (
+            set(payload) != {"seconds"}
+            or type(payload["seconds"]) is not int
+            or not 30 <= payload["seconds"] <= 1800
+        ):
+            raise HTTPException(status_code=422, detail="Choose 30 to 1800 whole capture seconds")
+        try:
+            return await asyncio.to_thread(training_service.datasets.start, payload["seconds"])
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from None
+
+    @app.post("/training/data/stop")
+    async def stop_public_capture(request: Request) -> dict:
+        require_allowed_mutation_origin(request)
+        await training_json(request, allow_empty=True)
+        try:
+            return await asyncio.to_thread(training_service.datasets.stop)
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from None
+
     @app.post("/training/credentials")
     async def training_credentials(request: Request) -> dict:
         require_allowed_mutation_origin(request)

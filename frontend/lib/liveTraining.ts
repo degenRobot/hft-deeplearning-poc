@@ -46,6 +46,15 @@ export interface LiveTraining {
     reversion: number;
   };
   error: string | null;
+  progress?: {
+    stage: string;
+    completed_steps: number;
+    total_steps: number | null;
+    percent: number | null;
+    elapsed_seconds: number | null;
+    remote_elapsed_seconds: number | null;
+    compute_estimate_usd: number | null;
+  };
 }
 const object = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === "object" && !Array.isArray(v);
@@ -134,6 +143,46 @@ export function parseLiveTraining(v: unknown): LiveTraining | null {
   )
     return null;
   if (v.can_stop !== undefined && typeof v.can_stop !== "boolean") return null;
+  if (v.progress !== undefined) {
+    const p = v.progress;
+    if (
+      !object(p) ||
+      ![
+        "idle",
+        "preparing",
+        "supervised",
+        "rl",
+        "finalizing",
+        "completed",
+        "failed",
+        "stopped",
+      ].includes(String(p.stage)) ||
+      !count(p.completed_steps) ||
+      !(
+        p.total_steps === null ||
+        (count(p.total_steps) && p.total_steps > 0)
+      ) ||
+      !(
+        p.percent === null ||
+        (finite(p.percent) && p.percent >= 0 && p.percent <= 100)
+      ) ||
+      ![
+        p.elapsed_seconds,
+        p.remote_elapsed_seconds,
+        p.compute_estimate_usd,
+      ].every((x) => x === null || (finite(x) && x >= 0))
+    )
+      return null;
+    if (
+      (p.total_steps !== null &&
+        p.completed_steps > (p.total_steps as number)) ||
+      (v.status === "running" &&
+        (["completed", "failed", "stopped", "idle"].includes(String(p.stage)) ||
+          p.percent === 100)) ||
+      (v.status !== "running" && p.stage !== v.status)
+    )
+      return null;
+  }
   let sizes: [number, number] = [64, 32];
   if (v.dataset !== null) {
     if (
@@ -218,6 +267,15 @@ export interface TrainingSettings {
   defaults: TrainingOptions;
   limits: { hidden_min: number; hidden_max: number; epochs_max: number };
   resources: { cpu: number; memory_gib: number; timeout_seconds: number };
+  pricing?: {
+    checked_on: string;
+    source_url: string;
+    cpu_core_second_usd: number;
+    memory_gib_second_usd: number;
+    cpu_cores: number;
+    memory_gib: number;
+    timeout_seconds: number;
+  };
 }
 export const trainingParameterCount = (first: number, second: number) =>
   301 * first + (first + 1) * second + (second + 1) * 3;
@@ -272,6 +330,20 @@ export function parseTrainingSettings(v: unknown): TrainingSettings | null {
     ].every((x) => finite(x) && x > 0)
   )
     return null;
+  if (
+    v.pricing !== undefined &&
+    (!object(v.pricing) ||
+      typeof v.pricing.checked_on !== "string" ||
+      v.pricing.source_url !== "https://modal.com/pricing" ||
+      ![
+        v.pricing.cpu_core_second_usd,
+        v.pricing.memory_gib_second_usd,
+        v.pricing.cpu_cores,
+        v.pricing.memory_gib,
+        v.pricing.timeout_seconds,
+      ].every((x) => finite(x) && x > 0))
+  )
+    return null;
   return {
     modal: { configured: v.modal.configured, available: v.modal.available },
     defaults: {
@@ -283,6 +355,7 @@ export function parseTrainingSettings(v: unknown): TrainingSettings | null {
     },
     limits: limits as unknown as TrainingSettings["limits"],
     resources: v.resources as unknown as TrainingSettings["resources"],
+    pricing: v.pricing as TrainingSettings["pricing"],
   };
 }
 export function trainingCanStop(data: LiveTraining | null) {

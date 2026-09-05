@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { API_DEFAULT } from "../lib/connection";
+import { TrainingCost } from "./TrainingProgress";
 import {
   DEFAULT_TRAINING_OPTIONS,
   parseTrainingSettings,
@@ -383,6 +384,7 @@ export function TrainingControls({
             Image build and startup time are additional; this is not a billing
             cap.
           </p>
+          <TrainingCost pricing={settings?.pricing} />
           {!settings?.modal.available && (
             <p role="status">
               The backend needs the Modal Python package before cloud training

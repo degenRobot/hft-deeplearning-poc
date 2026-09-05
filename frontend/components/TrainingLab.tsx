@@ -1,4 +1,6 @@
 "use client";
+import { TrainingProgress } from "./TrainingProgress";
+import { TrainingDataset } from "./TrainingDataset";
 import Link from "next/link";
 import { TrainingControls } from "./TrainingControls";
 import { useLiveTraining } from "../hooks/useLiveTraining";
@@ -376,10 +378,14 @@ export function TrainingLab() {
           <p>
             Supervised warmup learns which proxy expert fits the next move. Then
             REINFORCE updates the gate one example at a time, using delayed
-            rewards from recorded public market events.
+            rewards from recorded public market events. This trains the
+            allocation gate. The three fast expert rules stay fixed; the
+            terminal also shows a separately trained tiny neural expert as an
+            experimental signal.
           </p>
         </div>
       </div>
+      <TrainingDataset />
       <TrainingControls
         data={data}
         loading={loading}
@@ -413,6 +419,7 @@ export function TrainingLab() {
           </time>
         )}
       </div>
+      <TrainingProgress data={data} />
       {data?.error && (
         <p className="training-run-error" role="alert">
           Run failed: {data.error}

@@ -13,7 +13,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .training_credentials import credential_status, project_env
+from .training_data import PublicDatasetService
 from .training_options import TrainingOptions
+from .training_progress import MODAL_PRICING, training_progress
 
 
 def empty_snapshot() -> dict:
@@ -43,13 +45,20 @@ class SnapshotWriter:
         except BlockingIOError:
             self.lock.close()
             raise ValueError("another training run is active") from None
-        self.state = empty_snapshot() | dict(run_id=run_id, status="running", backend=backend)
+        self.state = empty_snapshot() | dict(
+            run_id=run_id,
+            status="running",
+            backend=backend,
+            started_at=datetime.now(UTC).isoformat(),
+        )
         self.mutex = threading.RLock()
         self.publish()
 
     def publish(self):
         with self.mutex:
             self.state["updated_at"] = datetime.now(UTC).isoformat()
+            if self.state["status"] == "running" or "progress" not in self.state:
+                self.state["progress"] = training_progress(self.state)
             temporary = self.path.with_suffix(f".{os.getpid()}.tmp")
             temporary.write_text(json.dumps(self.state, allow_nan=False), encoding="utf-8")
             temporary.replace(self.path)
@@ -63,10 +72,12 @@ class SnapshotWriter:
             self.state["history"] = self.state["history"][-400:]
         elif event["kind"] == "completed":
             self.state.update(status="completed", evaluation=event["evaluation"])
+            self.state["progress"] = training_progress(self.state)
         self.publish()
 
     def finish(self, status: str, error: str | None = None):
         self.state.update(status=status, error=error)
+        self.state["progress"] = training_progress(self.state)
         self.publish()
 
     def close(self):
@@ -80,6 +91,7 @@ class TrainingService:
         self.process: subprocess.Popen | None = None
         self.pending: dict | None = None
         self.env_path = project_env(root)
+        self.datasets = PublicDatasetService(root)
 
     def settings(self) -> dict:
         return dict(
@@ -87,6 +99,7 @@ class TrainingService:
             defaults={"backend": "local", **TrainingOptions().to_dict()},
             limits={"hidden_min": 8, "hidden_max": 1024, "epochs_max": 50},
             resources={"cpu": 2, "memory_gib": 2, "timeout_seconds": 600},
+            pricing=MODAL_PRICING,
         )
 
     def snapshot(self) -> dict:
@@ -119,6 +132,8 @@ class TrainingService:
                     result.update(
                         status="failed", error="Training worker exited without completion"
                     )
+                    if result.get("progress"):
+                        result["progress"]["stage"] = "failed"
         return result
 
     def start(self, options: TrainingOptions | None = None, backend: str = "local") -> dict:
@@ -129,7 +144,7 @@ class TrainingService:
             raise ValueError("another training run is active")
         if self.snapshot()["status"] == "running":
             raise ValueError("another training run is active")
-        recording = self.root / "data/training-public.jsonl"
+        recording = self.datasets.selected_recording()
         if not recording.is_file():
             raise FileNotFoundError("Record public data to data/training-public.jsonl first")
         if backend == "modal":
@@ -180,5 +195,6 @@ class TrainingService:
         return self.snapshot()
 
     def close(self):
+        self.datasets.close()
         if self.process is not None and self.process.poll() is None:
             self.stop()

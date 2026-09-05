@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -184,6 +185,7 @@ def main():
                     if event["kind"] == "execution":
                         call_id = event["function_call_id"]
                         writer.state["execution"] = {"function_call_id": call_id}
+                        writer.state["execution_started_at"] = datetime.now(UTC).isoformat()
                         writer.publish()
                     elif event["kind"] == "artifacts":
                         for name, content in event["files"].items():

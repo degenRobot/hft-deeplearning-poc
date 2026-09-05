@@ -1,0 +1,394 @@
+"""Bounded public recording capture and immutable selection for future training runs."""
+
+from __future__ import annotations
+
+import asyncio
+import fcntl
+import hashlib
+import json
+import os
+import re
+import subprocess
+import sys
+import threading
+import time
+import uuid
+from datetime import UTC, datetime
+from pathlib import Path
+
+SYMBOL = "BTCUSDT"
+MAX_EVENTS = 500_000
+MAX_BYTES = 100_000_000
+BOOK_INTERVAL_MS = 100
+ACTIVE = {"running", "stopping", "validating"}
+CAPTURE_ID = re.compile(r"[0-9a-f]{32}\Z")
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def _duration(seconds: int) -> int:
+    if type(seconds) is not int or not 30 <= seconds <= 1800:
+        raise ValueError("Capture duration must be an integer from 30 to 1800 seconds")
+    return seconds
+
+
+def _capture_path(root: Path, capture_id: str) -> Path:
+    if not isinstance(capture_id, str) or CAPTURE_ID.fullmatch(capture_id) is None:
+        raise ValueError("Invalid capture ID")
+    return root / "data/training-captures" / f"{capture_id}.jsonl"
+
+
+def _write_state(path: Path, state: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(f".{os.getpid()}.tmp")
+    temporary.write_text(json.dumps(state, allow_nan=False), encoding="utf-8")
+    temporary.replace(path)
+
+
+def inspect_recording(root: Path, path: Path, dataset_id: str) -> dict:
+    """Check the exact causal training split, not a duration or event-count proxy."""
+    from .contracts import BookEvent
+    from .training import build_examples, build_frame_dataset, load_recording
+    from .training_lab import split_lab_examples
+
+    result = {
+        "id": dataset_id,
+        "label": "Built-in public recording"
+        if dataset_id == "builtin"
+        else "Captured public recording",
+        "path": str(path.relative_to(root)),
+        "source": "binance_public",
+        "symbol": SYMBOL,
+        "event_count": 0,
+        "book_count": 0,
+        "trade_count": 0,
+        "bytes": 0,
+        "first_event_ts_ms": None,
+        "last_event_ts_ms": None,
+        "sha256": None,
+        "frame_count": 0,
+        "training_ready": False,
+        "error": None,
+    }
+    if not path.is_file() or path.is_symlink():
+        result["error"] = "Recording is unavailable"
+        return result
+    result["bytes"] = path.stat().st_size
+    if result["bytes"] > MAX_BYTES:
+        result["error"] = "Recording exceeds 100 MB"
+        return result
+    result["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    try:
+        events = load_recording(path)
+        if len(events) > MAX_EVENTS or any(
+            e.symbol != SYMBOL or e.venue != "binance" for e in events
+        ):
+            raise ValueError("Capture must contain at most 500000 public Binance BTCUSDT events")
+        result.update(
+            event_count=len(events),
+            book_count=sum(isinstance(e, BookEvent) for e in events),
+            trade_count=sum(not isinstance(e, BookEvent) for e in events),
+            first_event_ts_ms=min(e.event_ts_ms for e in events),
+            last_event_ts_ms=max(e.event_ts_ms for e in events),
+        )
+        frames = build_frame_dataset(events)
+        result["frame_count"] = len(frames.values)
+        examples = build_examples(frames.values, frames.mids, 30, 5, close_ts_ms=frames.close_ts_ms)
+        split_lab_examples(examples, len(frames.values), 15)
+        result["training_ready"] = True
+    except ValueError as error:
+        # Split failures are useful explanations; malformed-file errors can contain paths.
+        message = str(error)
+        result["error"] = (
+            message
+            if message.startswith("insufficient contiguous")
+            else "Recording does not contain enough valid contiguous public data"
+        )
+    return result
+
+
+class PublicDatasetService:
+    def __init__(self, root: Path):
+        self.root = Path(root).resolve()
+        self.path = self.root / "artifacts/training-data.json"
+        self.lock_path = self.path.with_suffix(".lock")
+        self.process: subprocess.Popen | None = None
+        self._builtin: dict | None = None
+        self._mutex = threading.RLock()
+
+    def _default_selected(self) -> dict:
+        if self._builtin is None:
+            self._builtin = inspect_recording(
+                self.root, self.root / "data/training-public.jsonl", "builtin"
+            )
+        return self._builtin.copy()
+
+    def _state(self) -> dict:
+        try:
+            state = json.loads(self.path.read_text())
+            if state.get("schema_version") != 1 or not isinstance(state.get("capture"), dict):
+                raise ValueError("Invalid capture state")
+            if state["capture"].get("status") not in ACTIVE | {
+                "idle",
+                "completed",
+                "incomplete",
+                "stopped",
+                "failed",
+            }:
+                raise ValueError("Invalid capture status")
+            selected = state["selected"]
+            expected = (
+                "data/training-public.jsonl"
+                if selected["id"] == "builtin"
+                else str(_capture_path(self.root, selected["id"]).relative_to(self.root))
+            )
+            if selected["path"] != expected:
+                raise ValueError("Invalid selection path")
+            return state
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+            return {
+                "schema_version": 1,
+                "selected": self._default_selected(),
+                "capture": {"id": None, "status": "idle", "can_stop": False},
+            }
+
+    def _acquire(self):
+        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock = self.lock_path.open("a")
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            lock.close()
+            raise ValueError("Another public data capture is active") from None
+        return lock
+
+    def snapshot(self) -> dict:
+        with self._mutex:
+            state = self._state()
+            capture = state["capture"]
+            if capture["status"] in ACTIVE:
+                try:
+                    lock = self._acquire()
+                except ValueError:
+                    pass
+                else:
+                    lock.close()
+                    capture.update(
+                        status="failed", error="Capture worker exited without completion"
+                    )
+            capture["can_stop"] = (
+                self.process is not None
+                and self.process.poll() is None
+                and capture["status"] in ACTIVE
+            )
+            return state
+
+    def selected_recording(self) -> Path:
+        selected = self._state()["selected"]
+        path = self.root / selected["path"]
+        if not path.is_file() or path.is_symlink():
+            raise FileNotFoundError("Selected public recording is unavailable")
+        return path
+
+    def start(self, seconds: int) -> dict:
+        seconds = _duration(seconds)
+        with self._mutex:
+            if self.process is not None and self.process.poll() is None:
+                raise ValueError("Another public data capture is active")
+            lock = self._acquire()
+            try:
+                state = self._state()
+                capture_id = uuid.uuid4().hex
+                state["capture"] = {
+                    "id": capture_id,
+                    "status": "running",
+                    "requested_seconds": seconds,
+                    "elapsed_seconds": 0.0,
+                    "progress": 0.0,
+                    "events": 0,
+                    "book_count": 0,
+                    "trade_count": 0,
+                    "bytes": 0,
+                    "first_event_ts_ms": None,
+                    "last_event_ts_ms": None,
+                    "started_at": _now(),
+                    "ended_at": None,
+                    "updated_at": _now(),
+                    "error": None,
+                    "can_stop": True,
+                    "symbol": SYMBOL,
+                    "source": "binance_public",
+                    "sha256": None,
+                }
+                _write_state(self.path, state)
+                command = [
+                    sys.executable,
+                    str(self.root / "scripts/capture_training_data.py"),
+                    "--id",
+                    capture_id,
+                    "--seconds",
+                    str(seconds),
+                    "--lock-fd",
+                    str(lock.fileno()),
+                ]
+                with (self.path.parent / f"training-data-{capture_id}.log").open("x") as log:
+                    self.process = subprocess.Popen(
+                        command, cwd=self.root, stdout=log, stderr=log, pass_fds=(lock.fileno(),)
+                    )
+            except BaseException:
+                if "state" in locals() and "capture_id" in locals():
+                    state["capture"].update(
+                        status="failed", error="Capture worker failed to start", can_stop=False
+                    )
+                    _write_state(self.path, state)
+                raise
+            finally:
+                lock.close()
+            return self.snapshot()
+
+    def stop(self) -> dict:
+        with self._mutex:
+            if self.process is None or self.process.poll() is not None:
+                raise ValueError("No capture owned by this server is active")
+            self.process.terminate()
+            try:
+                self.process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                # Keep observing its lock and progress; never report an unconfirmed stop.
+                pass
+            return self.snapshot()
+
+    def close(self) -> None:
+        if self.process is not None and self.process.poll() is None:
+            self.stop()
+
+
+async def capture_dataset(
+    root: Path,
+    capture_id: str,
+    seconds: int,
+    recorder,
+    *,
+    lock_fd: int | None = None,
+    heartbeat_seconds: float = 0.5,
+) -> dict:
+    """Worker entry point; recorder is the existing bounded public stream implementation."""
+    _duration(seconds)
+    root = Path(root).resolve()
+    output = _capture_path(root, capture_id)
+    service = PublicDatasetService(root)
+    if lock_fd is None:
+        lock = service._acquire()
+    else:
+        lock = os.fdopen(lock_fd, "a")
+        if os.fstat(lock.fileno()).st_ino != service.lock_path.stat().st_ino:
+            lock.close()
+            raise ValueError("Invalid capture lock")
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    state = service._state()
+    capture = state["capture"]
+    if capture.get("id") != capture_id or capture.get("status") != "running":
+        lock.close()
+        raise ValueError("Capture request does not match the current state")
+    started = time.monotonic()
+    stop_heartbeat = threading.Event()
+    mutex = threading.RLock()
+
+    def publish():
+        with mutex:
+            elapsed = time.monotonic() - started
+            capture.update(
+                elapsed_seconds=round(elapsed, 3),
+                progress=1.0 if capture["status"] == "completed" else min(elapsed / seconds, 0.99),
+                updated_at=_now(),
+            )
+            _write_state(service.path, state)
+
+    def progress(receipt):
+        with mutex:
+            capture.update(
+                events=receipt["total"],
+                book_count=receipt["book"],
+                trade_count=receipt["trade"],
+                bytes=receipt["bytes"],
+                first_event_ts_ms=receipt["first_event_ts_ms"],
+                last_event_ts_ms=receipt["last_event_ts_ms"],
+                feed_status=receipt["feed_status"],
+                reconnects=receipt["reconnects"],
+            )
+
+    def heartbeat():
+        while not stop_heartbeat.wait(heartbeat_seconds):
+            publish()
+
+    thread = threading.Thread(target=heartbeat, daemon=True)
+    thread.start()
+    status, error = "completed", None
+    try:
+        try:
+            result = await recorder(
+                output,
+                SYMBOL,
+                seconds,
+                MAX_EVENTS,
+                BOOK_INTERVAL_MS,
+                MAX_BYTES,
+                progress_callback=progress,
+            )
+            capture["stop_reason"] = result["stop_reason"]
+        except asyncio.CancelledError:
+            status = "stopped"
+        except Exception:
+            status, error = "failed", "Public capture failed; see the local capture log"
+        capture["status"] = (
+            "validating" if status == "completed" else "stopping" if status == "stopped" else status
+        )
+        publish()
+        # Parsing and split construction can take time. Keep the event loop responsive
+        # to Stop, but retain the capture lock until the read-only validator finishes.
+        validation = asyncio.create_task(
+            asyncio.to_thread(inspect_recording, root, output, capture_id)
+        )
+        metadata = None
+        while True:
+            try:
+                metadata = await asyncio.shield(validation)
+                break
+            except asyncio.CancelledError:
+                status = "stopped"
+                capture["status"] = "stopping"
+                publish()
+            except Exception:
+                if status != "stopped":
+                    status, error = "failed", "Public capture validation failed"
+                break
+        if metadata is not None:
+            capture.update(
+                events=metadata["event_count"],
+                book_count=metadata["book_count"],
+                trade_count=metadata["trade_count"],
+                bytes=metadata["bytes"],
+                first_event_ts_ms=metadata["first_event_ts_ms"],
+                last_event_ts_ms=metadata["last_event_ts_ms"],
+                sha256=metadata["sha256"],
+                frame_count=metadata["frame_count"],
+                training_ready=metadata["training_ready"],
+                path=metadata["path"],
+            )
+            if status == "completed":
+                if metadata["training_ready"]:
+                    state["selected"] = metadata
+                else:
+                    status, error = "incomplete", metadata["error"]
+        capture.update(status=status, error=error, ended_at=_now(), can_stop=False)
+        # Drain the state writer before publishing the terminal snapshot or unlocking.
+        stop_heartbeat.set()
+        thread.join()
+        publish()
+        return state
+    finally:
+        stop_heartbeat.set()
+        thread.join()
+        lock.close()

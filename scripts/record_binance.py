@@ -7,6 +7,7 @@ import asyncio
 import json
 import math
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from market_gate.contracts import BookEvent, TradeEvent
@@ -44,6 +45,7 @@ async def record_events(
     book_interval_ms: int,
     max_bytes: int,
     progress_seconds: float = 30,
+    progress_callback: Callable[[dict[str, object]], None] | None = None,
 ) -> dict[str, object]:
     """Stream a new file with hard duration, saved-event and serialized-byte caps."""
     feed = BinancePublicFeed(symbol)
@@ -103,6 +105,8 @@ async def record_events(
                         if last_ts_ms is None
                         else max(last_ts_ms, event.event_ts_ms)
                     )
+                    if progress_callback is not None:
+                        progress_callback(receipt())
                     if time.monotonic() >= next_progress:
                         handle.flush()
                         print(json.dumps(receipt(), sort_keys=True), flush=True)
@@ -114,7 +118,10 @@ async def record_events(
                     stop_reason = "feed_ended"
         except TimeoutError:
             stop_reason = "deadline"
-    return receipt()
+    result = receipt()
+    if progress_callback is not None:
+        progress_callback(result)
+    return result
 
 
 def parse_args() -> argparse.Namespace:

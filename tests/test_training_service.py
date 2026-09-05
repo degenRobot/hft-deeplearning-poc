@@ -35,7 +35,7 @@ def test_snapshot_completion_and_finite_serialization(tmp_path):
 
 def test_missing_dataset_does_not_start_process(tmp_path):
     service = TrainingService(tmp_path)
-    with pytest.raises(FileNotFoundError, match="Record public data"):
+    with pytest.raises(FileNotFoundError, match="Selected public recording is unavailable"):
         service.start()
     assert service.process is None
 

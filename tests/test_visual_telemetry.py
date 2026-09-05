@@ -15,17 +15,17 @@ def engine():
 
 def test_visual_tape_matches_decisions_and_is_bounded_and_hidden_when_stale():
     value = engine()
-    for i in range(60):
+    for i in range(80):
         value.process(book(1000 + i * 10, i))
-    value.process(TradeEvent("replay", "BTCUSDT", 1600, 1600, 99, 101.0, 0.3, "buy"))
-    snap = value.snapshot(1600)
+    value.process(TradeEvent("replay", "BTCUSDT", 1800, 1800, 99, 101.0, 0.3, "buy"))
+    snap = value.snapshot(1800)
     tape = snap["visual"]["events"]
-    assert len(tape) == 48
+    assert len(tape) == 64
     assert tape[-1]["kind"] == "buy"
     assert tape[-1]["size"] == 0.3
     assert tape[-1]["signal"] == sum(e["contribution"] for e in snap["experts"])
     assert tape[-1]["scores"] == [e["score"] for e in snap["experts"]]
-    assert [e["id"] for e in tape] == list(range(14, 62))
+    assert [e["id"] for e in tape] == list(range(18, 82))
     assert value.snapshot(10000)["visual"]["events"] == []
     assert value.snapshot(10000)["visual"]["window"] == []
 

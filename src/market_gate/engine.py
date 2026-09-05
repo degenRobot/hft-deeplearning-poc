@@ -3,6 +3,7 @@
 import time
 from collections import deque
 from math import isfinite
+from pathlib import Path
 
 from .config import LabConfig
 from .contracts import BookEvent, DecisionFrame, TradeEvent
@@ -11,17 +12,25 @@ from .features import FeatureBuilder
 from .gate import blend_and_smooth, load_numpy_gate, static_weights, uniform_weights
 from .paper import PaperLedger
 from .risk import make_quote
+from .tiny_expert import DEFAULT_TINY_EXPERT_PATH, load_tiny_expert
 
 
 class MarketEngine:
-    def __init__(self, config: LabConfig, model_path: str | None = None) -> None:
+    def __init__(
+        self,
+        config: LabConfig,
+        model_path: str | None = None,
+        tiny_expert_path: str | Path | None = DEFAULT_TINY_EXPERT_PATH,
+    ) -> None:
         self.config = config
         self.gate = load_numpy_gate(model_path)
+        self.tiny_expert = load_tiny_expert(tiny_expert_path)
+        self.neural_expert: dict[str, object] | None = None
         self.features = FeatureBuilder()
         self.frames: deque[tuple[float, ...]] = deque(maxlen=30)
         # Bounded observation only: these buffers never feed trading decisions.
         self.frame_times: deque[int] = deque(maxlen=30)
-        self.visual_events: deque[dict[str, object]] = deque(maxlen=48)
+        self.visual_events: deque[dict[str, object]] = deque(maxlen=64)
         self.gate_window: list[dict[str, object]] = []
         self.gate_activations: dict[str, list[float]] | None = None
         self.candles: deque[dict[str, float | int]] = deque(maxlen=90)
@@ -168,6 +177,26 @@ class MarketEngine:
             "flow": trade_flow_impulse(signed_volume, total_volume, len(self.recent_trades)),
             "reversion": short_reversion(mid, fair),
         }
+        self.neural_expert = None
+        if (
+            self.tiny_expert is not None
+            and self._book_fresh(arrival_ts_ms)
+            and arrival_ts_ms - event.event_ts_ms <= self.config.stale_after_ms
+        ):
+            inputs = [scores[key] for key in EXPERT_IDS]
+            started_ns = time.perf_counter_ns()
+            try:
+                neural_score = self.tiny_expert.predict(inputs)
+            except (ValueError, FloatingPointError):
+                pass
+            else:
+                self.neural_expert = {
+                    "score": neural_score,
+                    "model_version": self.tiny_expert.model_version,
+                    "parameter_count": self.tiny_expert.parameter_count,
+                    "inference_us": (time.perf_counter_ns() - started_ns) / 1000,
+                    "inputs": inputs,
+                }
         contributions = {
             key: scores[key] * self.weights[key] * self.config.expert_strength for key in EXPERT_IDS
         }
@@ -208,6 +237,7 @@ class MarketEngine:
                 if isinstance(event, BookEvent)
                 else event.size,
                 "scores": [scores[key] for key in EXPERT_IDS],
+                "neural_score": self.neural_expert["score"] if self.neural_expert else None,
                 "signal": signal,
                 "gate_revision": self.gate_revision,
             }
@@ -315,6 +345,7 @@ class MarketEngine:
                 for key in EXPERT_IDS
             ],
             "visual": {
+                "neural_expert": self.neural_expert if ready else None,
                 "events": list(self.visual_events) if ready else [],
                 "candles": [dict(c) for c in self.candles] if ready else [],
                 "activations": self.gate_activations if ready else None,
