@@ -15,7 +15,9 @@ from .config import load_config
 from .runtime import MarketRuntime
 from .training_service import TrainingService
 
-ALLOWED_MUTATION_ORIGINS = {"http://localhost:3000", "http://127.0.0.1:3000"}
+ALLOWED_MUTATION_ORIGINS = {
+    f"http://{host}:{port}" for host in ("localhost", "127.0.0.1") for port in (3000, 3001)
+}
 TRAINING_RECEIPT_PATH = Path(__file__).parents[2] / "artifacts" / "training-demo.json"
 
 

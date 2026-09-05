@@ -84,11 +84,14 @@ def _export(model, mean, scale, destination: Path):
     """Fold train-only normalization into the portable raw-input first layer."""
     import torch
 
-    exported = copy.deepcopy(model)
+    # Folding can subtract large nearly equal terms for constant input columns.
+    # Keep the portable weights in float64 so raw-input inference retains precision.
+    exported = copy.deepcopy(model).double()
     with torch.no_grad():
-        weight = model[0].weight.detach()
+        weight = model[0].weight.detach().double()
+        mean, scale = mean.double(), scale.double()
         exported[0].weight.copy_(weight / scale)
-        exported[0].bias.copy_(model[0].bias - (weight * (mean / scale)).sum(dim=1))
+        exported[0].bias.copy_(model[0].bias.double() - (weight * (mean / scale)).sum(dim=1))
     _save_gate_model(exported, destination)
 
 

@@ -156,6 +156,30 @@ def test_future_reward_cannot_change_sampled_action_or_input(tmp_path):
     assert a["reward"] != b["reward"]
 
 
+def test_trained_export_matches_with_constant_and_low_variance_columns(tmp_path, monkeypatch):
+    import market_gate.training_lab as lab
+
+    source = recording(tmp_path / "data.jsonl")
+    rows, _ = examples(source)
+    raw = torch.from_numpy(np.stack([row.features for row in rows]))
+    original = lab._export
+    errors = []
+
+    def checked_export(model, mean, scale, destination):
+        assert int((scale == 1e-6).sum()) > 0
+        original(model, mean, scale, destination)
+        expected = torch.softmax(model((raw - mean) / scale), dim=-1).detach().numpy()
+        gate = NumpyMLPGate(destination)
+        actual = np.asarray([list(gate.predict(row.reshape(30, 10)).values()) for row in raw])
+        errors.append(float(np.max(np.abs(expected - actual))))
+        np.testing.assert_allclose(actual, expected, rtol=2e-5, atol=2e-6)
+        assert np.array_equal(actual.argmax(axis=1), expected.argmax(axis=1))
+
+    monkeypatch.setattr(lab, "_export", checked_export)
+    list(train_lab(source, tmp_path / "run", epochs=12, max_rl_steps=15))
+    assert len(errors) == 2
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [

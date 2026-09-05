@@ -72,8 +72,21 @@ class TrainingService:
         self.root = root
         self.path = root / "artifacts/training-live.json"
         self.process: subprocess.Popen | None = None
+        self.pending: dict | None = None
 
     def snapshot(self) -> dict:
+        if self.pending is not None:
+            published = None
+            try:
+                published = json.loads(self.path.read_text())
+            except (OSError, ValueError):
+                pass
+            if published and published.get("run_id") == self.pending["run_id"]:
+                self.pending = None
+            elif self.process is not None and self.process.poll() is None:
+                return self.pending.copy()
+            else:
+                return self.pending | dict(status="failed", error="Training worker failed to start")
         if not self.path.exists():
             return empty_snapshot()
         try:
@@ -123,7 +136,10 @@ class TrainingService:
                 stderr=log,
             )
         # The worker owns the lock and state; never overwrite a concurrent worker's snapshot.
-        return empty_snapshot() | dict(run_id=run_id, status="running")
+        self.pending = empty_snapshot() | dict(
+            run_id=run_id, status="running", updated_at=datetime.now(UTC).isoformat()
+        )
+        return self.pending.copy()
 
     def stop(self):
         if self.process is None or self.process.poll() is not None:
