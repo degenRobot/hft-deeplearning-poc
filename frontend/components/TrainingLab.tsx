@@ -81,7 +81,9 @@ function TrainingNetwork({
       <span className="flow-kicker">02 / FORWARD PASS</span>
       <h2>Inside the neural gate</h2>
       <p className="input-explanation">
-        300 inputs → {sizes[0]} ReLU → {sizes[1]} ReLU → 3 expert probabilities.
+        {dataset
+          ? `300 inputs → ${sizes[0]} ReLU → ${sizes[1]} ReLU → 3 expert probabilities.`
+          : "The training runner will report the model architecture when it starts."}
         {dataset?.parameter_count
           ? ` ${n(dataset.parameter_count)} parameters in this run.`
           : ""}

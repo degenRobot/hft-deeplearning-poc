@@ -10,19 +10,41 @@ The local and Modal models gave the same highest-weight expert on all 865 usable
 windows; their probabilities differed by less than 2.81e-8. Their exported parameter
 bytes are not identical across ARM macOS and x86 Linux. The models remain experimental.
 
-Open `/training` and press **Start local training**. The page shows real optimizer
-steps from a separate experimental gate: input features, hidden-neuron activations,
+Open `/training`, choose **Local** or **Modal**, configure the model and start training.
+Both backends show real optimizer steps: input features, hidden-neuron activations,
 loss, gradients, parameter changes and expert probabilities before and after each update.
 The live terminal continues using its own model.
 
+The [configurable-run receipt](../artifacts/training-example/options-validation.json)
+also records browser-launched medium local and large Modal runs. Each completed two
+supervised updates and 42 replay decisions, with verified checkpoint shapes and hashes.
+The large model's supervised loss increased over these two updates; these runs verify
+configuration and transport, not improved model quality.
+
 ## The training task
 
-The network has the same dimensions as the terminal gate: 30 observed one-second
-frames × 10 features → 64 ReLU neurons → 32 ReLU neurons → 3 expert weights.
-There are 21,443 learned parameters. The raw inputs retain the existing feature order.
-Normalization statistics come only from the supervised prefix. Export folds those
-statistics into float64 first-layer weights so the existing NumPy inference reader can
-consume raw inputs without a separate normalizer.
+Every model takes 30 observed one-second frames × 10 features, passes them through
+two ReLU hidden layers and produces 3 expert weights. Choose a preset or enter custom
+widths for the two hidden layers:
+
+| Preset | Hidden layer 1 | Hidden layer 2 | Learned parameters |
+| --- | ---: | ---: | ---: |
+| Small | 64 | 32 | 21,443 |
+| Medium | 256 | 128 | 110,339 |
+| Large | 1,024 | 512 | 834,563 |
+
+Each hidden layer accepts 8–1,024 neurons. Training accepts 1–50 supervised epochs
+and a learning rate from 0.00001 to 0.01. Defaults remain the small model, 12 epochs
+and a 0.001 learning rate; replay adaptation uses one fifth of that learning rate.
+The UI reports the actual architecture and parameter count. To keep the visualization
+readable, it displays up to the first 64 activations in layer 1 and 32 in layer 2,
+with sampled counts labeled. All neurons participate in training.
+
+The raw inputs retain the existing feature order. Normalization statistics come only
+from the supervised prefix. Export folds those statistics into float64 first-layer
+weights. The 64/32 model retains the `gate-npz-v1` format supported by the existing
+NumPy inference reader. Other widths produce separate `training-mlp-v1` educational
+artifacts with explicit layer sizes; the live gate cannot load them.
 
 The recording is divided by frame position before fitting: 50% supervised, 30% replay
 adaptation, 20% final holdout. Windows crossing boundaries are excluded, as are the
@@ -31,7 +53,7 @@ Missing seconds exclude windows; no synthetic books or interpolated prices are i
 The run requires at least 30 supervised examples, 15 causal RL decisions and 15 holdout
 examples after these checks. It fails if the recording falls short.
 
-During 12 supervised epochs, soft targets favor experts whose proxy signals align with
+During supervised epochs, soft targets favor experts whose proxy signals align with
 the mid-price move five seconds later. Cross entropy updates the full supervised batch;
 the pictured feature window and activations are one example in that batch. Gradients
 and loss therefore describe the batch, not just the displayed window.
@@ -64,7 +86,7 @@ sizes needed by this feature set. See the
 [public market-data endpoint documentation](https://github.com/binance/binance-spot-api-docs/blob/master/faqs/market_data_only.md).
 
 ```sh
-uv sync --extra dev --extra training
+uv sync --extra dev --extra training --extra cloud
 # Use a new output path for a new capture. The bundled recording is already complete.
 uv run python scripts/record_binance.py --symbol BTCUSDT --seconds 900 \
   --book-interval-ms 100 --max-events 500000 --max-bytes 100000000 \
@@ -74,22 +96,40 @@ uv run python scripts/run_training_lab.py --input data/training-public.jsonl \
   --output artifacts/my-local-training --pace 0.25
 ```
 
-The browser button uses the fixed `data/training-public.jsonl` dataset and creates a
-new directory under `artifacts/training-runs/`. It cannot select arbitrary files or
-start cloud compute. One OS lock prevents concurrent local and Modal training writers.
-Stop terminates the local child process; server shutdown also stops a child it owns.
-The UI labels completed runs and clears unavailable telemetry. Reloading a page does
-not start training.
+The browser uses the fixed `data/training-public.jsonl` dataset and creates a new
+directory under `artifacts/training-runs/`. Selecting Modal sends that dataset and the
+chosen training options to a cloud run. The browser cannot select arbitrary files.
+One OS lock prevents concurrent local and Modal training writers. Stop signals the
+owned runner; a Modal runner also cancels its remote function call when one has started.
+Server shutdown also stops a child it owns. The UI labels completed
+runs and clears unavailable telemetry. Reloading a page does not start training.
 
-## One bounded Modal run
+## Set up Modal in the UI
+
+Create an account at [Modal](https://modal.com/) and obtain a token ID and token secret
+from your Modal settings. The [Starter plan](https://modal.com/pricing) includes $30
+in free compute credits per month, as checked on September 5, 2026.
+
+Select Modal in the training page and open its credential settings. Enter
+`MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` in the masked fields and save. The server saves
+these two entries to `.env` at the main checkout root, with owner-only `0600`
+permissions, and preserves other entries. Saved credentials are never echoed back to
+the page; it reports whether they are configured. You can also enter the two variables
+directly in that root `.env` file.
+
+Choose a model preset or custom widths, epochs and learning rate, then start the Modal
+run. Larger models still use the fixed CPU resources below; selecting Large does not
+request a GPU or more memory.
+
+## One bounded Modal run from the CLI
 
 ```sh
 # Prints the exact source/input hashes and resource plan without contacting Modal.
-uv run --with modal==1.5.2 python scripts/train_lab_on_modal.py \
+uv run python scripts/train_lab_on_modal.py \
   --output artifacts/my-modal-training
 
 # Execute one run using the two local credentials, after reviewing the plan.
-uv run --with modal==1.5.2 python scripts/train_lab_on_modal.py --run \
+uv run python scripts/train_lab_on_modal.py --run \
   --env-file /path/to/root/.env --output artifacts/my-modal-training
 ```
 
@@ -108,4 +148,7 @@ the timeout excludes image build/startup and is not a whole-job billing cap.
 
 Artifacts include the input hash, source hashes, package versions, split boundaries,
 hyperparameters, model hashes and heldout comparisons. `modal-execution.json` additionally
-records the actual app/function-call IDs. Runtime model promotion is a separate decision.
+records the actual app/function-call IDs. Custom-width outputs are named
+`training-mlp-supervised.npz` and `training-mlp-adapted.npz`; the default 64/32 model
+keeps `gate-supervised.npz` and `gate-adapted.npz`. Runtime model promotion is a separate
+decision.
