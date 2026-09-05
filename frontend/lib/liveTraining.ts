@@ -19,6 +19,7 @@ export interface TrainingStep {
 }
 export interface LiveTraining {
   schema_version: 1;
+  continuous?: boolean;
   run_id: string | null;
   status: "idle" | "running" | "completed" | "failed" | "stopped";
   backend: "local" | "modal";
@@ -144,6 +145,8 @@ export function parseLiveTraining(v: unknown): LiveTraining | null {
         Number.isFinite(Date.parse(v.updated_at)))
     )
   )
+    return null;
+  if (v.continuous !== undefined && typeof v.continuous !== "boolean")
     return null;
   if (v.can_stop !== undefined && typeof v.can_stop !== "boolean") return null;
   if (v.progress !== undefined) {

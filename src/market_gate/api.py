@@ -135,6 +135,23 @@ def create_app(config_path: str | Path = "configs/demo.toml") -> FastAPI:
     async def training() -> dict[str, object]:
         return load_training_receipt(TRAINING_RECEIPT_PATH)
 
+    @app.get("/learning")
+    async def learning_status() -> dict:
+        return runtime.learning.status()
+
+    @app.patch("/learning")
+    async def configure_learning(request: Request) -> dict:
+        require_allowed_mutation_origin(request)
+        payload = await training_json(request)
+        try:
+            return runtime.learning.configure(payload)
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from None
+
+    @app.get("/learning/training")
+    async def learning_training() -> dict:
+        return runtime.learning.training_snapshot()
+
     @app.get("/training/live")
     async def live_training() -> dict:
         return training_service.snapshot() | {

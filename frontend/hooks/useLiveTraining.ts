@@ -9,8 +9,12 @@ import {
   DEFAULT_TRAINING_OPTIONS,
 } from "../lib/liveTraining";
 const API = (process.env.NEXT_PUBLIC_API_URL || API_DEFAULT).replace(/\/$/, "");
-export function useLiveTraining() {
-  const [data, setData] = useState<LiveTraining | null>(null);
+export function useLiveTraining(mode: "manual" | "live" = "manual") {
+  const [snapshot, setSnapshot] = useState<{
+    mode: "manual" | "live";
+    data: LiveTraining;
+  } | null>(null);
+  const data = snapshot?.mode === mode ? snapshot.data : null;
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
@@ -35,7 +39,7 @@ export function useLiveTraining() {
       const timeout = setTimeout(() => {
         current.abort();
         if (!disposed && version === epoch) {
-          setData(null);
+          setSnapshot(null);
           setError("Training telemetry timed out. Display cleared.");
           setLoading(false);
         }
@@ -54,10 +58,13 @@ export function useLiveTraining() {
             throw new Error(`Training ${action} returned ${result.status}`);
         }
         if (disposed || version !== epoch || current.signal.aborted) return;
-        const result = await fetch(`${API}/training/live`, {
-          cache: "no-store",
-          signal: current.signal,
-        });
+        const result = await fetch(
+          `${API}/${mode === "live" ? "learning/training" : "training/live"}`,
+          {
+            cache: "no-store",
+            signal: current.signal,
+          },
+        );
         if (!result.ok)
           throw new Error(`Training telemetry returned ${result.status}`);
         const parsed = parseLiveTraining(await result.json());
@@ -67,11 +74,11 @@ export function useLiveTraining() {
           throw new Error(
             "Training telemetry is stale. Waiting for a fresh update.",
           );
-        setData(parsed);
+        setSnapshot({ mode, data: parsed });
         setError("");
       } catch (cause) {
         if (disposed || version !== epoch) return;
-        setData(null);
+        setSnapshot(null);
         setError(
           current.signal.aborted
             ? "Training telemetry timed out. Display cleared."
@@ -90,11 +97,11 @@ export function useLiveTraining() {
       }
     };
     command.current = async (action, options) => {
-      if (disposed || busy) return;
+      if (disposed || busy || mode === "live") return;
       busy = true;
       clearTimeout(timer);
       setPending(true);
-      setData(null);
+      setSnapshot(null);
       setError("");
       await request(action, options);
     };
@@ -106,7 +113,7 @@ export function useLiveTraining() {
       clearTimeout(timer);
       command.current = null;
     };
-  }, []);
+  }, [mode]);
   const start = useCallback(
     (options?: TrainingOptions) => command.current?.("start", options),
     [],

@@ -9,6 +9,7 @@ from .config import LabConfig
 from .engine import MarketEngine
 from .feeds.binance import BinancePublicFeed
 from .feeds.replay import ReplayFeed, replay_schedule
+from .live_learning import LiveLearner
 
 
 class FeedEndedError(RuntimeError):
@@ -23,6 +24,8 @@ class MarketRuntime:
         self.model_path = Path(model_path)
         self.fixture_path = Path(fixture_path)
         self.engine = MarketEngine(config, self.model_path)
+        self.learning = LiveLearner(self.engine)
+        self.learning_task: asyncio.Task[None] | None = None
         self.feed_task: asyncio.Task[None] | None = None
         self.feed_generation = 0
         self.feed_error: str | None = None
@@ -62,6 +65,13 @@ class MarketRuntime:
             return {"run_id": self.engine.run_id, "feed_generation": self.feed_generation}
 
     async def _stop_locked(self) -> None:
+        if self.learning_task is not None:
+            self.learning_task.cancel()
+            try:
+                await self.learning_task
+            except asyncio.CancelledError:
+                pass
+            self.learning_task = None
         if self.feed_task is not None:
             self.feed_task.cancel()
             try:
@@ -81,10 +91,23 @@ class MarketRuntime:
         self.engine = MarketEngine(self.config, self.model_path)
         self.engine.run_id = uuid.uuid4().hex[:12]
         self.engine.feed_generation = self.feed_generation
+        self.learning = LiveLearner(self.engine)
+        self.learning_task = asyncio.create_task(self._run_learning(self.learning))
         self.feed_task = asyncio.create_task(self._run_feed(self.engine))
         self.feed_task.add_done_callback(
             lambda task, engine=self.engine: self._consume_task_result(task, engine)
         )
+
+    async def _run_learning(self, learner: LiveLearner) -> None:
+        while True:
+            try:
+                learner.tick()
+            except Exception as error:
+                learner.enabled = False
+                learner.pending = None
+                learner.stage = "failed"
+                learner.error = f"Learning stopped: {type(error).__name__}"
+            await asyncio.sleep(0.2)
 
     def _record_feed_failure(self, engine: MarketEngine, error: Exception) -> None:
         engine.feed_status = "failed"

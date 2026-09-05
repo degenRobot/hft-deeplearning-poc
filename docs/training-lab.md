@@ -272,3 +272,54 @@ The live heatmap adds columns from actual distinct decision events, retaining th
 latest 64. Green means buy bias, red means sell bias, and intensity shows the bounded
 signal magnitude. These are not calibrated confidence probabilities. The browser
 receives snapshots at 10 Hz and can add multiple event columns per snapshot.
+
+
+## Continuous learning in the terminal
+
+Enable **Live RL** in the terminal or Training Lab, then choose a 5–60 second
+interval. After 30 fresh one-second frames, the local CPU samples one expert,
+waits at least five seconds for a new book, and takes a small REINFORCE step.
+The Training Lab switches to its Live RL view automatically and displays the
+sampled inputs, hidden activations, before/after probabilities and layer deltas.
+
+Only the 99 output weights and biases of the loaded 21,443-parameter demo gate
+adapt. Both hidden layers stay frozen. The reward is the sampled expert signal
+multiplied by the observed mid-price return in bps, clipped to ±5. An EMA baseline
+uses earlier rewards only; the advantage is divided by five, gradients clipped
+to norm one, and SGD uses a fixed 0.001 rate. The sampled action supplies a proxy
+learning signal; quotes still use the gate's smoothed mixture of the three fixed
+rules through the existing deterministic risk checks. There are no exchange orders.
+
+One pending example prevents reuse across policy versions. A fresh book must
+arrive after the five-second deadline; outcomes later than 6.5 seconds are dropped.
+Stale feeds, gaps and invalid numbers discard pending work. Pause retains weights;
+reset restores the loaded checkpoint. Runtime setting changes restart the feed,
+restore the checkpoint and disable learning. Adaptation stays in memory and stops
+when this local server stops. No Modal job or automatic artifact promotion runs.
+The learner retains 40 recent telemetry updates; it does not claim holdout results.
+
+The runtime supports replay and the actual Binance public WebSocket streams
+`bookTicker` and `aggTrade` at `data-stream.binance.vision`. The source dropdown
+selects the feed. RISEx is not implemented. The replay default remains available
+for reproducible offline demos; this session's preview was switched to Binance.
+
+## Transfer learning and time scales
+
+Fetching more history increases the number of examples. It does not change the
+one-second sampling interval: the candle model still sees 30 frames and predicts
+a five-second close-price move. A different sampling interval would change the
+meaning of returns, volatility and horizons; it cannot be treated as more rows.
+
+A possible transfer experiment is history pretraining → compatible representation
+→ fine-tuning on a later live regime. The live head-only demo illustrates keeping
+existing hidden weights while adapting the last layer. It starts from the loaded
+demo gate, not from whichever historical experiment most recently completed.
+Candle checkpoints lack order-book features and remain incompatible with the
+terminal; transferring them needs a consistent feature/normalization contract
+and later held-out evaluation. No benefit of transfer is claimed by this demo.
+
+[fast.ai's fine-tune schedule](https://docs.fast.ai/callback.schedule.html#Learner.fine_tune)
+trains a frozen model's head first, then unfreezes with different learning rates.
+The [reference discussion](https://forums.fast.ai/t/transfer-learning-in-fast-ai-how-does-the-magic-work/55620)
+also shows why preprocessing and input resolution must be matched when comparing
+transfer experiments. These are design references; this demo does not use fast.ai.

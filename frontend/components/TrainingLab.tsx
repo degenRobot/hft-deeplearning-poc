@@ -1,4 +1,6 @@
 "use client";
+import { useEffect, useRef, useState } from "react";
+import { LiveLearningPanel, useLiveLearning } from "./LiveLearning";
 import { TrainingProgress } from "./TrainingProgress";
 import { TrainingDataset } from "./TrainingDataset";
 import Link from "next/link";
@@ -21,17 +23,20 @@ function Empty({ children }: { children: React.ReactNode }) {
 function InputWindow({
   step,
   dataset,
+  continuous = false,
 }: {
   step: TrainingStep | null;
   dataset: LiveTraining["dataset"];
+  continuous?: boolean;
 }) {
   return (
     <article className="flow-card">
-      <span className="flow-kicker">01 / RECORDED MARKET INPUT</span>
+      <span className="flow-kicker">01 / MARKET INPUT</span>
       <h2>30 frames × 10 features</h2>
       <p className="input-explanation">
-        Raw features for this update. Each column is an observed frame. The
-        model standardizes inputs using only the supervised data.
+        {continuous
+          ? "Live features · one column per second."
+          : "Recorded features · standardized from supervised data."}
       </p>
       {step ? (
         <>
@@ -98,7 +103,7 @@ function TrainingNetwork({
       <p className="input-explanation">
         {dataset
           ? `300 inputs → ${sizes[0]} ReLU → ${sizes[1]} ReLU → 3 expert probabilities.`
-          : "The training runner will report the model architecture when it starts."}
+          : "300 inputs → 64 ReLU → 32 ReLU → 3 expert probabilities."}
         {dataset?.parameter_count
           ? ` ${n(dataset.parameter_count)} parameters in this run.`
           : ""}
@@ -133,8 +138,7 @@ function TrainingNetwork({
             ))}
           </div>
           <p className="flow-footnote">
-            Actual activations before this update. Brightness is scaled within
-            each layer. Hover to inspect a neuron.
+            Actual activations · brighter = stronger within this layer.
           </p>
         </>
       ) : (
@@ -162,6 +166,13 @@ function Outputs({ step }: { step: TrainingStep | null }) {
                 <span>{(step.outputs_before[i] * 100).toFixed(2)}%</span>
                 <strong style={{ color: colors[i] }}>
                   {(step.outputs_after[i] * 100).toFixed(2)}%
+                  <small className="training-output-delta">
+                    {step.outputs_after[i] >= step.outputs_before[i] ? "+" : ""}
+                    {decimal(
+                      (step.outputs_after[i] - step.outputs_before[i]) * 100,
+                    )}{" "}
+                    pp
+                  </small>
                 </strong>
               </div>
               <div className="training-prob-track">
@@ -182,8 +193,7 @@ function Outputs({ step }: { step: TrainingStep | null }) {
             </div>
           ))}
           <p className="flow-footnote">
-            Same input, before and after the weight update. These are
-            expert-selection probabilities, not a forecast probability.
+            Same input · expert selection before → after learning.
           </p>
         </>
       ) : (
@@ -370,7 +380,17 @@ function Evaluation({
   );
 }
 export function TrainingLab() {
-  const { data, error, loading, pending, start, stop } = useLiveTraining();
+  const learning = useLiveLearning();
+  const [view, setView] = useState<"manual" | "live">("manual");
+  const wasEnabled = useRef(false);
+  const liveEnabled = learning.data?.enabled;
+  useEffect(() => {
+    if (liveEnabled === undefined) return;
+    if (liveEnabled && !wasEnabled.current) setView("live");
+    wasEnabled.current = liveEnabled;
+  }, [liveEnabled]);
+  const { data, error, loading, pending, start, stop } = useLiveTraining(view);
+  const continuous = view === "live";
   const step = data?.latest ?? null;
   const running = data?.status === "running";
   const historical = data?.dataset?.source_mode === "historical_candles_1s";
@@ -394,25 +414,69 @@ export function TrainingLab() {
         <div>
           <span className="flow-kicker">EXPERIMENTAL / LEARNING IN VIEW</span>
           <h2>Your model, trained in front of you.</h2>
-          <p>
-            Supervised warmup learns which proxy expert fits the next move. Then
-            REINFORCE updates the gate one example at a time, using delayed
-            rewards from recorded public market{" "}
-            {historical ? "candles" : "events"}. This trains the allocation
-            gate. The three fast expert rules stay fixed; the terminal also
-            shows a separately trained tiny neural expert as an experimental
-            signal.
-          </p>
+          <p>Data in. Learn from the outcome. Watch the weights change.</p>
         </div>
       </div>
-      <TrainingDataset />
-      <TrainingControls
-        data={data}
-        loading={loading}
-        pending={pending}
-        start={start}
-        stop={stop}
-      />
+      <LiveLearningPanel learning={learning} lab />
+      <nav className="training-view-tabs" aria-label="Training view">
+        <button aria-pressed={!continuous} onClick={() => setView("manual")}>
+          Train on history
+        </button>
+        <button aria-pressed={continuous} onClick={() => setView("live")}>
+          Live RL {learning.data?.enabled ? "●" : ""}
+        </button>
+      </nav>
+      {!continuous && (
+        <>
+          <TrainingDataset />
+          <TrainingControls
+            data={data}
+            loading={loading}
+            pending={pending}
+            start={start}
+            stop={stop}
+          />
+        </>
+      )}
+      <details className="flow-card transfer-note">
+        <summary>How does transfer learning fit?</summary>
+        <div className="learning-cycle">
+          <span>Pretrain on history</span>
+          <b>→</b>
+          <span>Keep useful layers</span>
+          <b>→</b>
+          <span>Fine-tune on new data</span>
+        </div>
+        <p>
+          A longer download is more examples, not a slower model: our candles
+          are still 1 second, the input is 30 frames, and the target is a
+          5-second move. Changing those time scales changes what features mean.
+        </p>
+        <p>
+          The live demo reuses the loaded gate, freezes its hidden layers and
+          adapts its output head. Historical candle models stay separate:
+          candles cannot supply missing order-book features. Connecting those
+          models would require a compatible feature schema and a fresh
+          evaluation.
+        </p>
+        <p>
+          <a
+            href="https://docs.fast.ai/callback.schedule.html#Learner.fine_tune"
+            target="_blank"
+            rel="noreferrer"
+          >
+            fast.ai: freeze, then fine-tune ↗
+          </a>{" "}
+          ·{" "}
+          <a
+            href="https://forums.fast.ai/t/transfer-learning-in-fast-ai-how-does-the-magic-work/55620"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Your reference discussion ↗
+          </a>
+        </p>
+      </details>
       <div
         className={`training-statusbar ${error ? "training-error" : ""}`}
         role="status"
@@ -430,7 +494,7 @@ export function TrainingLab() {
         <span>
           {error ||
             (data?.run_id
-              ? `${data.backend} · ${data.run_id} · ${step ? `step ${step.step} / ${step.phase === "rl" ? "online RL replay" : "supervised"}` : "Preparing dataset"}`
+              ? `${continuous ? "live feed" : data.backend} · ${step ? `step ${step.step} / ${step.phase === "rl" ? (continuous ? "live RL" : "RL replay") : "supervised"}` : continuous ? "Waiting for first live update" : "Preparing dataset"}`
               : "No training run yet")}
         </span>
         {data?.updated_at && (
@@ -439,7 +503,7 @@ export function TrainingLab() {
           </time>
         )}
       </div>
-      <TrainingProgress data={data} />
+      {!continuous && <TrainingProgress data={data} />}
       {historical && (
         <aside
           className="training-mode-banner"
@@ -447,11 +511,8 @@ export function TrainingLab() {
         >
           <strong>Historical candle proxy training</strong>
           <p>
-            30 one-second frames predict a five-second close-price move. Flow
-            and reversion use candle data. Spread, book imbalance, microprice
-            and quote updates are unavailable and zero-filled. This cannot
-            validate order-book strategies, and this model is not compatible
-            with the live terminal.
+            1s candles → 30s input → five-second close-price move. Four book
+            features unavailable; not compatible with the live terminal.
           </p>
           <details>
             <summary>Data assumptions</summary>
@@ -467,7 +528,7 @@ export function TrainingLab() {
         </p>
       )}
       <div className="training-explainer">
-        <span>01 · recorded features</span>
+        <span>01 · features</span>
         <b>→</b>
         <span>02 · forward pass</span>
         <b>→</b>
@@ -476,7 +537,11 @@ export function TrainingLab() {
         <span>04 · updated weights</span>
       </div>
       <div className="training-forward">
-        <InputWindow step={step} dataset={data?.dataset ?? null} />
+        <InputWindow
+          step={step}
+          dataset={data?.dataset ?? null}
+          continuous={continuous}
+        />
         <TrainingNetwork step={step} dataset={data?.dataset ?? null} />
         <Outputs step={step} />
       </div>
@@ -485,13 +550,14 @@ export function TrainingLab() {
           <span className="flow-kicker">
             OPTIMIZATION / ACTUAL STEP HISTORY
           </span>
-          <h2>Two stages, two learning signals</h2>
-          <LossChart history={data?.history ?? []} phase="supervised" />
+          <h2>{continuous ? "Learning as data arrives" : "Learning curve"}</h2>
+          {!continuous && (
+            <LossChart history={data?.history ?? []} phase="supervised" />
+          )}
           <LossChart history={data?.history ?? []} phase="rl" />
           <p className="flow-footnote">
-            Latest {data?.history.length ?? 0} of at most 400 telemetry steps.
-            Each chart uses its own loss scale; policy-gradient loss can be
-            negative.
+            {data?.history.length ?? 0} recent updates · each curve has its own
+            scale.
           </p>
         </article>
         <article className="flow-card">
@@ -536,12 +602,14 @@ export function TrainingLab() {
             </Empty>
           )}
           <p className="flow-footnote">
-            The gradient describes loss sensitivity. The optimizer turns it into
-            a weight change; the next forward pass produces new expert
-            probabilities.
+            {continuous
+              ? "Frozen layers: Δ = 0. Output head: one small gradient step."
+              : "Gradient → weight change → new expert probabilities."}
           </p>
           <div className="training-reward">
-            <span className="flow-kicker">DELAYED REWARD / RECORDED TIME</span>
+            <span className="flow-kicker">
+              DELAYED REWARD / OBSERVED OUTCOME
+            </span>
             <h3>
               {step?.phase === "rl" && step.action !== null
                 ? `${experts[step.action]} selected`
@@ -563,20 +631,24 @@ export function TrainingLab() {
               </strong>
             </div>
             <p className="flow-footnote">
-              Online contextual-bandit updates on replay. Recorded outcomes
-              arrive after the input window; this is not reinforcement from a
-              live exchange.
+              {continuous
+                ? "Live observed move × sampled expert signal. Clipped proxy reward, not P&L."
+                : "Delayed proxy reward on recorded data · not live exchange feedback."}
             </p>
           </div>
         </article>
       </div>
-      <div className="training-bottom">
-        <Dataset dataset={data?.dataset ?? null} />
-        <Evaluation evaluation={data?.evaluation ?? null} />
-      </div>
+      {!continuous && (
+        <details className="training-evaluation-details">
+          <summary>Dataset split &amp; holdout comparison</summary>
+          <div className="training-bottom">
+            <Dataset dataset={data?.dataset ?? null} />
+            <Evaluation evaluation={data?.evaluation ?? null} />
+          </div>
+        </details>
+      )}
       <footer className="footer">
-        Educational experiment · actual optimizer telemetry · no model promotion
-        or trading execution
+        Educational demo · actual weight updates · synthetic quotes only
       </footer>
     </main>
   );

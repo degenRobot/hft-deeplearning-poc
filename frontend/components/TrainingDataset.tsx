@@ -178,13 +178,9 @@ export function TrainingDataset() {
   const downloading = capture?.mode === "historical";
   return (
     <section className="training-dataset" aria-label="Public training dataset">
-      <span className="flow-kicker">PUBLIC DATA / YOUR NEXT TRAINING RUN</span>
-      <h2>Choose a pair and a past time range.</h2>
-      <p>
-        Fetch free Binance historical 1-second candles without an API key, or
-        capture a live stream. Both feed 30-frame windows and a delayed 5-second
-        learning target.
-      </p>
+      <span className="flow-kicker">01 / TRAINING DATA</span>
+      <h2>Choose your data.</h2>
+      <p>Free Binance candles or a live capture. No API key needed.</p>
       {selected && (
         <>
           <div className="dataset-facts">
@@ -223,12 +219,18 @@ export function TrainingDataset() {
           </p>
           <p>
             {historical
-              ? "Historical OHLCV, taker-buy volume and trade counts support close-price, flow and reversion proxies. Spread, book imbalance, microprice and quote updates are unavailable and zero-filled. This dataset cannot validate order-book strategies."
-              : `${selected.symbol} best bid / ask prices and sizes, plus aggregate trades. Live captures retain at most one book update per 100 ms and every trade within the capture limits.`}
+              ? "Candle proxies only: this dataset cannot validate order-book strategies."
+              : `${selected.symbol} recorded books and trades.`}
           </p>
           {selected.error && <p role="status">{selected.error}</p>}
           <details>
-            <summary>Dataset fingerprint and source</summary>
+            <summary>Source, features and fingerprint</summary>
+            <p>
+              {historical
+                ? "Historical OHLCV, taker-buy volume and trade counts support close-price, flow and reversion proxies. Spread, book imbalance, microprice and quote updates are unavailable and zero-filled."
+                : "Live captures retain at most one book update per 100 ms and every aggregate trade within the capture limits."}{" "}
+              Training uses 30-frame windows and a delayed 5-second target.
+            </p>
             <p>
               {selected.path}
               <br />
@@ -348,9 +350,8 @@ export function TrainingDataset() {
       </div>
       {mode === "historical" ? (
         <p className="flow-footnote">
-          Enter UTC times, regardless of your device timezone. Choose a closed
-          past range of 10 minutes to 5 hours in whole seconds; the end second
-          is excluded.
+          UTC · 10 minutes–5 hours · whole seconds · past data only. End
+          excluded.
         </p>
       ) : (
         <p className="flow-footnote">
@@ -364,22 +365,27 @@ export function TrainingDataset() {
             : "Enter a whole duration from 30 to 1,800 seconds."}
         </p>
       )}
-      <p className="flow-footnote">
-        Runs the{" "}
-        <a
-          href={`https://github.com/degenRobot/hft-deeplearning-poc/blob/codex/live-training-lab/scripts/${mode === "historical" ? "fetch_training_history" : "capture_training_data"}.py`}
-          target="_blank"
-          rel="noreferrer"
-        >
-          {mode === "historical"
-            ? "historical download script"
-            : "public capture script"}{" "}
-          ↗
-        </a>{" "}
-        locally. A dataset becomes selected only after chronological split
-        checks pass. Short or interrupted acquisitions retain the previous
-        selection. An active training run keeps its original data.
-      </p>
+      <details>
+        <summary>How data is prepared</summary>
+        <p className="flow-footnote">
+          Runs the{" "}
+          <a
+            href={`https://github.com/degenRobot/hft-deeplearning-poc/blob/codex/live-training-lab/scripts/${mode === "historical" ? "fetch_training_history" : "capture_training_data"}.py`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {mode === "historical"
+              ? "historical download script"
+              : "public capture script"}{" "}
+            ↗
+          </a>{" "}
+          locally. Chronological split checks must pass before selection. Short
+          or interrupted acquisitions keep the previous selection; active
+          training keeps its original data. Progress measures the time range
+          processed; gaps are not filled. Elapsed time includes shutdown and
+          validation. Picker times use UTC regardless of your device timezone.
+        </p>
+      </details>
       {capture && !stale && capture.status !== "idle" && (
         <div aria-label="Capture progress">
           <strong>
@@ -422,9 +428,10 @@ export function TrainingDataset() {
             {capture.elapsed_seconds == null
               ? "—"
               : Math.round(capture.elapsed_seconds)}
-            s, including shutdown and validation.
-            {downloading &&
-              " Progress measures the time range processed, not elapsed time; gaps are not filled."}
+            s ·{" "}
+            {downloading
+              ? "Progress = time range processed"
+              : "Includes validation"}
           </p>
           {downloading && capture.coverage_fraction != null && (
             <p className="flow-footnote">

@@ -98,8 +98,7 @@ function CredentialForm({
   return (
     <form className="training-credentials" onSubmit={save} autoComplete="off">
       <p>
-        The local backend saves these two values to the project root{" "}
-        <code>.env</code> with private file permissions. Saved values are never
+        Saved locally in <code>.env</code> with private permissions; never
         returned to this page.
       </p>
       <div className="training-fields">
@@ -232,11 +231,11 @@ export function TrainingControls({
     <section className="training-setup" aria-label="Configure training">
       <div className="training-setup-heading">
         <div>
-          <span className="flow-kicker">YOUR NEXT EXPERIMENT</span>
-          <h2>Choose where and how to train.</h2>
+          <span className="flow-kicker">02 / TRAIN THE MODEL</span>
+          <h2>Set up your run.</h2>
         </div>
         <span className="training-setup-caption">
-          Same public data · your model architecture
+          Selected data · your model
         </span>
       </div>
       <fieldset
@@ -282,50 +281,55 @@ export function TrainingControls({
             ))}
           </select>
         </label>
-        <label>
-          Hidden layer 1
-          <input
-            type="number"
-            min={limits.hidden_min}
-            max={limits.hidden_max}
-            step="1"
-            value={numberValue(options.hidden_1)}
-            onChange={(e) => changeNumber("hidden_1", e.target.value)}
-          />
-        </label>
-        <label>
-          Hidden layer 2
-          <input
-            type="number"
-            min={limits.hidden_min}
-            max={limits.hidden_max}
-            step="1"
-            value={numberValue(options.hidden_2)}
-            onChange={(e) => changeNumber("hidden_2", e.target.value)}
-          />
-        </label>
-        <label>
-          Warmup epochs
-          <input
-            type="number"
-            min="1"
-            max={limits.epochs_max}
-            step="1"
-            value={numberValue(options.epochs)}
-            onChange={(e) => changeNumber("epochs", e.target.value)}
-          />
-        </label>
-        <label>
-          Learning rate
-          <input
-            type="number"
-            min="0.00001"
-            max="0.01"
-            step="0.00001"
-            value={numberValue(options.learning_rate)}
-            onChange={(e) => changeNumber("learning_rate", e.target.value)}
-          />
-        </label>
+        <details style={{ gridColumn: "1 / -1" }}>
+          <summary>Advanced settings</summary>
+          <div className="training-fields">
+            <label>
+              Hidden layer 1
+              <input
+                type="number"
+                min={limits.hidden_min}
+                max={limits.hidden_max}
+                step="1"
+                value={numberValue(options.hidden_1)}
+                onChange={(e) => changeNumber("hidden_1", e.target.value)}
+              />
+            </label>
+            <label>
+              Hidden layer 2
+              <input
+                type="number"
+                min={limits.hidden_min}
+                max={limits.hidden_max}
+                step="1"
+                value={numberValue(options.hidden_2)}
+                onChange={(e) => changeNumber("hidden_2", e.target.value)}
+              />
+            </label>
+            <label>
+              Warmup epochs
+              <input
+                type="number"
+                min="1"
+                max={limits.epochs_max}
+                step="1"
+                value={numberValue(options.epochs)}
+                onChange={(e) => changeNumber("epochs", e.target.value)}
+              />
+            </label>
+            <label>
+              Learning rate
+              <input
+                type="number"
+                min="0.00001"
+                max="0.01"
+                step="0.00001"
+                value={numberValue(options.learning_rate)}
+                onChange={(e) => changeNumber("learning_rate", e.target.value)}
+              />
+            </label>
+          </div>
+        </details>
       </fieldset>
       <div className="training-model-summary">
         <span>
@@ -353,7 +357,7 @@ export function TrainingControls({
       {options.backend === "modal" && (
         <div className="training-modal-setup">
           <div className="training-modal-title">
-            <strong>Bring this experiment to Modal</strong>
+            <strong>Modal cloud</strong>
             <span className={modalReady ? "teal" : ""}>
               {saved
                 ? "Keys saved"
@@ -363,28 +367,34 @@ export function TrainingControls({
             </span>
           </div>
           <p>
-            <a href="https://modal.com/" target="_blank" rel="noreferrer">
-              Modal ↗
-            </a>{" "}
-            runs the training in a cloud container. Its{" "}
-            <a
-              href="https://modal.com/pricing"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Starter plan includes $30/month in free compute credits ↗
-            </a>{" "}
-            to experiment. Usage beyond your available credits is billed by
-            Modal.
+            Uses your Modal account. Charges apply beyond available credits.
           </p>
-          <p className="training-resource-note">
-            This run requests {settings?.resources.cpu ?? 2} CPUs and{" "}
-            {settings?.resources.memory_gib ?? 2} GiB memory, with a{" "}
-            {settings?.resources.timeout_seconds ?? 600}-second execution limit.
-            Image build and startup time are additional; this is not a billing
-            cap.
-          </p>
-          <TrainingCost pricing={settings?.pricing} />
+          <details className="training-modal-help">
+            <summary>Compute, cost estimate and credits</summary>
+            <p>
+              <a href="https://modal.com/" target="_blank" rel="noreferrer">
+                Modal ↗
+              </a>{" "}
+              runs the training in a cloud container. Its{" "}
+              <a
+                href="https://modal.com/pricing"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Starter plan includes $30/month in free compute credits ↗
+              </a>{" "}
+              to experiment. Usage beyond your available credits is billed by
+              Modal.
+            </p>
+            <p className="training-resource-note">
+              This run requests {settings?.resources.cpu ?? 2} CPUs and{" "}
+              {settings?.resources.memory_gib ?? 2} GiB memory, with a{" "}
+              {settings?.resources.timeout_seconds ?? 600}-second execution
+              limit. Image build and startup time are additional; this is not a
+              billing cap.
+            </p>
+            <TrainingCost pricing={settings?.pricing} />
+          </details>
           {!settings?.modal.available && (
             <p role="status">
               The backend needs the Modal Python package before cloud training
@@ -485,10 +495,10 @@ export function TrainingControls({
         </div>
         <p>
           {busy
-            ? "The current run uses its saved configuration. Settings unlock when it ends."
+            ? "Settings unlock when this run ends."
             : options.backend === "modal"
-              ? "Starting launches a cloud run using your Modal account."
-              : "Training runs on this machine. Larger models take more time and memory."}
+              ? "Runs in your Modal account."
+              : "Runs on this machine."}
         </p>
       </div>
     </section>
