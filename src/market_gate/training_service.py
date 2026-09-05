@@ -90,6 +90,7 @@ class TrainingService:
         self.path = root / "artifacts/training-live.json"
         self.process: subprocess.Popen | None = None
         self.pending: dict | None = None
+        self.pending_previous_run_id: str | None = None
         self.env_path = project_env(root)
         self.datasets = PublicDatasetService(root)
 
@@ -113,6 +114,13 @@ class TrainingService:
                 self.pending = None
             elif self.process is not None and self.process.poll() is None:
                 return self.pending.copy()
+            elif published and published.get("run_id") not in {
+                None,
+                self.pending_previous_run_id,
+            }:
+                # A different worker published after this launch. Reconcile its
+                # snapshot below, including the OS lock check for a running job.
+                self.pending = None
             else:
                 return self.pending | dict(status="failed", error="Training worker failed to start")
         if not self.path.exists():
@@ -142,7 +150,8 @@ class TrainingService:
             raise ValueError("Choose local or Modal training")
         if self.process is not None and self.process.poll() is None:
             raise ValueError("another training run is active")
-        if self.snapshot()["status"] == "running":
+        previous = self.snapshot()
+        if previous["status"] == "running":
             raise ValueError("another training run is active")
         recording = self.datasets.selected_recording()
         if not recording.is_file():
@@ -179,6 +188,10 @@ class TrainingService:
                 stderr=log,
             )
         # The worker owns the lock and state; never overwrite a concurrent worker's snapshot.
+        # Failed retries retain the same prior publication: their in-memory failure
+        # IDs were never written and must not make an old success appear new.
+        if self.pending is None:
+            self.pending_previous_run_id = previous.get("run_id")
         self.pending = empty_snapshot() | dict(
             run_id=run_id,
             backend=backend,

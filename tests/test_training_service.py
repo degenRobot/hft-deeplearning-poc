@@ -97,6 +97,65 @@ def test_new_run_does_not_show_previous_completed_snapshot(tmp_path, monkeypatch
     writer.close()
 
 
+@pytest.mark.parametrize("action", ["snapshot", "start"])
+def test_failed_pending_run_yields_to_new_cli_writer(tmp_path, monkeypatch, action):
+    service = TrainingService(tmp_path)
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data/training-public.jsonl").write_text("public recording")
+    launches = []
+
+    class ExitedProcess:
+        def __init__(self, *args, **kwargs):
+            launches.append(self)
+
+        def poll(self):
+            return 1
+
+    monkeypatch.setattr("market_gate.training_service.subprocess.Popen", ExitedProcess)
+    failed = service.start()
+    assert service.snapshot()["status"] == "failed"
+    writer = SnapshotWriter(service.path, "later-cli-run", "local")
+    try:
+        if action == "snapshot":
+            current = service.snapshot()
+            assert current["run_id"] == "later-cli-run"
+            assert current["status"] == "running"
+            assert service.pending is None
+        else:
+            with pytest.raises(ValueError, match="another training"):
+                service.start()
+            assert len(launches) == 1
+        assert writer.state["run_id"] != failed["run_id"]
+    finally:
+        writer.close()
+
+
+def test_repeated_startup_failures_do_not_reveal_old_success(tmp_path, monkeypatch):
+    service = TrainingService(tmp_path)
+    writer = SnapshotWriter(service.path, "old-success", "local")
+    writer.finish("completed")
+    writer.close()
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data/training-public.jsonl").write_text("public recording")
+
+    class ExitedProcess:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def poll(self):
+            return 1
+
+    monkeypatch.setattr("market_gate.training_service.subprocess.Popen", ExitedProcess)
+    for _ in range(2):
+        started = service.start()
+        failed = service.snapshot()
+        assert failed["run_id"] == started["run_id"]
+        assert failed["status"] == "failed"
+        assert failed["error"] == "Training worker failed to start"
+        assert service.snapshot() == failed
+    assert json.loads(service.path.read_text())["run_id"] == "old-success"
+
+
 def test_modal_start_forwards_validated_options_without_credentials_in_arguments(
     tmp_path, monkeypatch
 ):
