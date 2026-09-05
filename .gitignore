@@ -10,6 +10,8 @@ artifacts/*
 data/*
 !data/README.md
 !data/binance-btcusdt-sample.jsonl
+!data/training-public.jsonl
+!data/training-public.audit.json
 *.pt
 
 !data/phase2/
@@ -18,3 +20,8 @@ data/*
 !artifacts/phase2/*.json
 !artifacts/phase2-summary.json
 !artifacts/parity-reference-v2.json
+!artifacts/training-example/
+artifacts/training-example/*
+!artifacts/training-example/summary.json
+!artifacts/training-example/local/
+!artifacts/training-example/modal-run/

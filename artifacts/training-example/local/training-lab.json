@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-05T12:08:50.548250+00:00",
+  "dataset": {
+    "symbol": "BTCUSDT",
+    "venue": "binance",
+    "event_count": 9013,
+    "frame_count": 899,
+    "supervised_examples": 415,
+    "rl_examples": 42,
+    "holdout_examples": 116,
+    "sha256": "0e97091203e17d5f5788e280e3eaf3c18f60d156e322b5cfafdd7cc95abaa3e1",
+    "feature_names": [
+      "return_1s",
+      "return_5s",
+      "realized_volatility",
+      "spread_bps",
+      "book_imbalance",
+      "microprice_displacement",
+      "signed_flow_ratio",
+      "trade_arrivals",
+      "quote_updates",
+      "fair_value_distance"
+    ],
+    "expert_names": [
+      "microprice",
+      "flow",
+      "reversion"
+    ],
+    "lookback_frames": 30,
+    "horizon_frames": 5,
+    "history_embargo_frames": 30,
+    "clock": "event_ts_ms",
+    "normalization_fit": "supervised prefix only; folded into exported first layer",
+    "displayed_features": "raw features; Torch training uses train-only normalized inputs",
+    "supervised_last_target_ts_ms": 1788609581999,
+    "rl_first_start_ts_ms": 1788609612999,
+    "rl_last_target_ts_ms": 1788609851999,
+    "holdout_first_start_ts_ms": 1788609882999,
+    "holdout_last_target_ts_ms": 1788610031999,
+    "source_mode": "recorded market replay"
+  },
+  "config": {
+    "epochs": 12,
+    "max_rl_steps": 120,
+    "seed": 7,
+    "supervised_learning_rate": 0.001,
+    "rl_learning_rate": 0.0002,
+    "reward_scale_supervised_only": 0.25711575150489807,
+    "torch_threads": 1,
+    "deterministic_algorithms": true
+  },
+  "evaluation": {
+    "supervised": 0.0,
+    "adapted": 0.0,
+    "uniform": 0.0,
+    "microprice": 0.0,
+    "trade_flow": 0.0,
+    "reversion": 0.0
+  },
+  "evaluation_objective": "frozen final holdout mean expert-proxy utility in bps",
+  "artifacts": {
+    "supervised": {
+      "path": "gate-supervised.npz",
+      "sha256": "b830cac6ad146c9cb0efad6debfebb0ad01fee002d1846b922a18d65f8c8f696"
+    },
+    "adapted": {
+      "path": "gate-adapted.npz",
+      "sha256": "b94e81baf612e24da34391a3ceb36b90a9a4608e94ac73c8d9d159f7bf48b36d"
+    }
+  },
+  "parameter_count": 21443,
+  "steps": 54,
+  "duration_seconds": 15.093,
+  "provenance": {
+    "source_sha256": {
+      "training_lab.py": "ca6312178bcd495f0de422525b5d0706ca7f68c02393076488f0416d8dd65afe",
+      "training.py": "25320cd5d69830920b4067d09154100ce7eef74eb7e994b4b8ebaf7df6cf643c",
+      "features.py": "10dfcd44bc995415b0e791ffdb803438044aade2228be5c2ffb443fd34f2d21f",
+      "experts.py": "7c4d936977c8bb62e96cd59d1829131125123bf8ec881c8958c608e0974eea83",
+      "gate.py": "2bb4d6ebefeb8760b048fdebafe4e71d19460c40d92f37842ff30b23c56e6230"
+    },
+    "normalization_sha256": "f87bfa5fb704272cf0b1b2d93ca380f0c3b95d66ade6f09edacb670efbd804d9",
+    "python": "3.12.13",
+    "numpy": "2.5.2",
+    "torch": "2.14.0"
+  },
+  "limitations": [
+    "Online policy updates consume recorded public data, not a live exchange feed.",
+    "REINFORCE is an expert-selection contextual bandit, not an execution simulator.",
+    "Rewards are future-mid expert proxies; they are not fills or realized trading P&L.",
+    "Offline event-time ordering differs from live Binance receive-time sequencing.",
+    "quote_updates counts retained recorded books after sampling, not all live updates.",
+    "Held-out windows overlap; this short experiment does not establish generalisation.",
+    "Outputs are separate teaching artifacts; the live inference model is not replaced."
+  ]
+}

@@ -1,5 +1,15 @@
 # Watch a model learn
 
+The [recorded run summary](../artifacts/training-example/summary.json) contains the
+completed September 5 local and Modal examples: 9,013 public events across 15 minutes,
+415 supervised examples, 42 RL decisions and 116 holdout examples. Both phases changed
+weights. Supervised loss fell from 1.1051 to 1.0826. All holdout rewards were zero, so
+this capture demonstrates training mechanics and provides no useful model ranking.
+
+The local and Modal models gave the same highest-weight expert on all 865 usable
+windows; their probabilities differed by less than 2.81e-8. Their exported parameter
+bytes are not identical across ARM macOS and x86 Linux. The models remain experimental.
+
 Open `/training` and press **Start local training**. The page shows real optimizer
 steps from a separate experimental gate: input features, hidden-neuron activations,
 loss, gradients, parameter changes and expert probabilities before and after each update.
