@@ -4,7 +4,12 @@ import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TrainingDataset } from "../components/TrainingDataset";
 import { TrainingProgress } from "../components/TrainingProgress";
-import { captureIsStale, parsePublicTrainingData } from "../lib/trainingData";
+import {
+  captureIsStale,
+  parsePublicTrainingData,
+  historicalRequest,
+  defaultHistoricalRange,
+} from "../lib/trainingData";
 import type { LiveTraining } from "../lib/liveTraining";
 const selected = {
   id: "builtin",
@@ -147,6 +152,11 @@ describe("public data capture lifecycle", () => {
   });
   it("serializes duplicate capture starts and never performs the follow-up GET after unmount", async () => {
     await mount();
+    await act(async () =>
+      root()
+        .findAllByType("select")[0]
+        .props.onChange({ target: { value: "live" } }),
+    );
     const pending = deferred<unknown>();
     replies.push(pending.promise);
     await act(async () => {
@@ -243,4 +253,152 @@ describe("capture and terminal progress validity", () => {
       expect(html).toContain("Step totals were not recorded");
     },
   );
+});
+
+describe("historical acquisition", () => {
+  it("defaults to yesterday UTC and sends the selected pair with an exclusive UTC end", async () => {
+    vi.setSystemTime(new Date("2026-09-05T23:45:00Z"));
+    await mount();
+    expect(captureButton().children.join("")).toBe("Fetch historical data");
+    expect(
+      root()
+        .findAllByType("input")
+        .map((i) => i.props.value),
+    ).toEqual(["2026-09-04T00:00:00", "2026-09-04T00:15:00"]);
+    await act(async () =>
+      root()
+        .findAllByType("select")[1]
+        .props.onChange({ target: { value: "ETHUSDT" } }),
+    );
+    await act(async () => captureButton().props.onClick());
+    const post = vi
+      .mocked(fetch)
+      .mock.calls.find(([, init]) => init?.method === "POST");
+    expect(String(post?.[0])).toMatch(/\/training\/data\/history$/);
+    expect(JSON.parse(post?.[1]?.body as string)).toEqual({
+      symbol: "ETHUSDT",
+      start: "2026-09-04T00:00:00.000Z",
+      end: "2026-09-04T00:15:00.000Z",
+    });
+  });
+  it("submits edited datetime input values instead of the initial range", async () => {
+    vi.setSystemTime(new Date("2026-09-05T23:45:00Z"));
+    await mount();
+    await act(async () => {
+      root()
+        .findAllByType("input")[0]
+        .props.onInput({ currentTarget: { value: "2026-09-01T00:00" } });
+      root()
+        .findAllByType("input")[1]
+        .props.onInput({ currentTarget: { value: "2026-09-01T01:00" } });
+    });
+    await act(async () => captureButton().props.onClick());
+    const post = vi
+      .mocked(fetch)
+      .mock.calls.find(([, init]) => init?.method === "POST");
+    expect(JSON.parse(post?.[1]?.body as string)).toEqual({
+      symbol: "BTCUSDT",
+      start: "2026-09-01T00:00:00.000Z",
+      end: "2026-09-01T01:00:00.000Z",
+    });
+  });
+  it("rejects malformed dates, fractional seconds, future ends and out-of-bounds spans", () => {
+    const now = Date.parse("2026-09-05T00:00:00Z");
+    expect(defaultHistoricalRange(now)).toEqual({
+      start: "2026-09-04T00:00:00",
+      end: "2026-09-04T00:15:00",
+    });
+    expect(
+      historicalRequest("SOLUSDT", "2026-09-04T00:00", "2026-09-04T05:00", now)
+        ?.end,
+    ).toBe("2026-09-04T05:00:00.000Z");
+    for (const [start, end] of [
+      ["2026-09-04T00:00", "2026-09-04T00:09:59"],
+      ["2026-09-04T00:00", "2026-09-04T05:00:01"],
+      ["2026-09-04T00:00:00.1", "2026-09-04T00:15"],
+      ["2026-09-04T00:15", "2026-09-04T00:00"],
+      ["2026-09-05T00:00", "2026-09-05T00:15"],
+      ["2026-02-30T00:00", "2026-02-30T00:15"],
+    ])
+      expect(historicalRequest("BTCUSDT", start, end, now)).toBeNull();
+    expect(
+      historicalRequest("OTHER", "2026-09-04T00:00", "2026-09-04T00:15", now),
+    ).toBeNull();
+  });
+  it("accepts historical candle counts and long coverage but rejects inconsistent totals", () => {
+    const v = {
+      ...running(),
+      selected: {
+        ...selected,
+        event_count: 800,
+        candle_count: 800,
+        source_mode: "historical_candles_1s",
+      },
+      capture: {
+        ...running().capture,
+        mode: "historical",
+        requested_seconds: 18000,
+        candle_count: 234,
+      },
+    };
+    expect(parsePublicTrainingData(v)).not.toBeNull();
+    expect(
+      parsePublicTrainingData({
+        ...v,
+        selected: { ...v.selected, candle_count: 799 },
+      }),
+    ).toBeNull();
+    expect(
+      parsePublicTrainingData({
+        ...v,
+        selected: { ...v.selected, candle_count: 1.5 },
+      }),
+    ).toBeNull();
+    expect(
+      parsePublicTrainingData({
+        ...v,
+        capture: { ...v.capture, mode: "live" },
+      }),
+    ).toBeNull();
+  });
+  it("shows native candle coverage separately from download elapsed time", async () => {
+    replies.push(
+      Promise.resolve({
+        ...running(),
+        selected: {
+          ...selected,
+          event_count: 800,
+          candle_count: 800,
+          source_mode: "historical_candles_1s",
+          symbol: "SOLUSDT",
+        },
+        capture: {
+          ...running().capture,
+          mode: "historical",
+          requested_seconds: 18000,
+          candle_count: 234,
+          progress: 234 / 18000,
+        },
+      }),
+    );
+    await mount();
+    expect(root().findByType("progress").props.value).toBe(234 / 18000);
+    const text = JSON.stringify(renderer?.toJSON());
+    expect(text).toContain("requested market span");
+    expect(text).toContain("Elapsed:");
+    expect(text).toContain("cannot validate order-book strategies");
+    expect(text).not.toContain("BTCUSDT best bid");
+  });
+  it("surfaces a bounded backend validation detail", async () => {
+    await mount();
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ detail: "This range is not yet closed." }),
+    } as Response);
+    await act(async () => captureButton().props.onClick());
+    expect(root().findByProps({ role: "alert" }).children.join(" ")).toContain(
+      "This range is not yet closed.",
+    );
+  });
 });

@@ -165,6 +165,19 @@ def create_app(config_path: str | Path = "configs/demo.toml") -> FastAPI:
         except ValueError as error:
             raise HTTPException(status_code=409, detail=str(error)) from None
 
+    @app.post("/training/data/history")
+    async def start_public_history(request: Request) -> dict:
+        require_allowed_mutation_origin(request)
+        payload = await training_json(request)
+        if set(payload) != {"symbol", "start", "end"} or any(
+            not isinstance(value, str) for value in payload.values()
+        ):
+            raise HTTPException(status_code=400, detail="Provide symbol, start and end as strings")
+        try:
+            return await asyncio.to_thread(training_service.datasets.start_history, **payload)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from None
+
     @app.post("/training/data/stop")
     async def stop_public_capture(request: Request) -> dict:
         require_allowed_mutation_origin(request)

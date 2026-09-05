@@ -165,9 +165,9 @@ def test_trained_export_matches_with_constant_and_low_variance_columns(tmp_path,
     original = lab._export
     errors = []
 
-    def checked_export(model, mean, scale, destination):
+    def checked_export(model, mean, scale, destination, **kwargs):
         assert int((scale == 1e-6).sum()) > 0
-        original(model, mean, scale, destination)
+        original(model, mean, scale, destination, **kwargs)
         expected = torch.softmax(model((raw - mean) / scale), dim=-1).detach().numpy()
         gate = NumpyMLPGate(destination)
         actual = np.asarray([list(gate.predict(row.reshape(30, 10)).values()) for row in raw])

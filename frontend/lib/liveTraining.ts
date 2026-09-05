@@ -32,6 +32,9 @@ export interface LiveTraining {
     rl_examples: number;
     holdout_examples: number;
     sha256: string;
+    source_mode?: string;
+    limitations?: string[];
+    feature_names?: string[];
     hidden_sizes?: [number, number];
     parameter_count?: number;
   };
@@ -201,6 +204,26 @@ export function parseLiveTraining(v: unknown): LiveTraining | null {
       return null;
   }
   if (object(v.dataset)) {
+    if (
+      !(
+        v.dataset.source_mode === undefined ||
+        typeof v.dataset.source_mode === "string"
+      ) ||
+      !(
+        v.dataset.limitations === undefined ||
+        (Array.isArray(v.dataset.limitations) &&
+          v.dataset.limitations.every((x) => typeof x === "string"))
+      ) ||
+      !(
+        v.dataset.feature_names === undefined ||
+        (Array.isArray(v.dataset.feature_names) &&
+          v.dataset.feature_names.length === 10 &&
+          v.dataset.feature_names.every(
+            (x) => typeof x === "string" && x.length > 0,
+          ))
+      )
+    )
+      return null;
     if (v.dataset.hidden_sizes !== undefined) {
       if (
         !Array.isArray(v.dataset.hidden_sizes) ||

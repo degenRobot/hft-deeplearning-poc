@@ -18,7 +18,13 @@ const time = (value: number) => new Date(value).toISOString().slice(11, 23);
 function Empty({ children }: { children: React.ReactNode }) {
   return <div className="training-empty">{children}</div>;
 }
-function InputWindow({ step }: { step: TrainingStep | null }) {
+function InputWindow({
+  step,
+  dataset,
+}: {
+  step: TrainingStep | null;
+  dataset: LiveTraining["dataset"];
+}) {
   return (
     <article className="flow-card">
       <span className="flow-kicker">01 / RECORDED MARKET INPUT</span>
@@ -34,26 +40,33 @@ function InputWindow({ step }: { step: TrainingStep | null }) {
             role="img"
             aria-label="Actual 30 frame by 10 feature training input heatmap"
           >
-            {FEATURE_ROWS.map(([label, scale], row) => (
-              <div className="heat-row" key={label}>
-                <span title={FEATURE_HELP[row]}>{label}</span>
-                <div>
-                  {step.features.map((frame, column) => (
-                    <i
-                      className="feature-cell"
-                      key={column}
-                      style={{
-                        background: frame[row] >= 0 ? colors[0] : colors[2],
-                        opacity:
-                          0.12 +
-                          0.88 * Math.min(1, Math.abs(frame[row]) / scale),
-                      }}
-                      title={`${label} · frame ${column + 1}: ${frame[row].toPrecision(6)}`}
-                    />
-                  ))}
+            {FEATURE_ROWS.map(([fallbackLabel, scale], row) => {
+              const label = dataset?.feature_names?.[row] ?? fallbackLabel;
+              return (
+                <div className="heat-row" key={label}>
+                  <span
+                    title={dataset?.feature_names ? label : FEATURE_HELP[row]}
+                  >
+                    {label}
+                  </span>
+                  <div>
+                    {step.features.map((frame, column) => (
+                      <i
+                        className="feature-cell"
+                        key={column}
+                        style={{
+                          background: frame[row] >= 0 ? colors[0] : colors[2],
+                          opacity:
+                            0.12 +
+                            0.88 * Math.min(1, Math.abs(frame[row]) / scale),
+                        }}
+                        title={`${label} · frame ${column + 1}: ${frame[row].toPrecision(6)}`}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           <div className="heat-axis">
             <span>older → newer</span>
@@ -261,7 +274,12 @@ function Dataset({ dataset }: { dataset: LiveTraining["dataset"] }) {
         <>
           <div className="training-dataset-numbers">
             <strong>{dataset.symbol}</strong>
-            <span>{n(dataset.event_count)} public events</span>
+            <span>
+              {n(dataset.event_count)}{" "}
+              {dataset.source_mode === "historical_candles_1s"
+                ? "candles"
+                : "public events"}
+            </span>
             <span>{n(dataset.frame_count)} frames</span>
           </div>
           <div
@@ -355,6 +373,7 @@ export function TrainingLab() {
   const { data, error, loading, pending, start, stop } = useLiveTraining();
   const step = data?.latest ?? null;
   const running = data?.status === "running";
+  const historical = data?.dataset?.source_mode === "historical_candles_1s";
   return (
     <main className="shell training-lab signal-lab">
       <header className="topbar">
@@ -378,10 +397,11 @@ export function TrainingLab() {
           <p>
             Supervised warmup learns which proxy expert fits the next move. Then
             REINFORCE updates the gate one example at a time, using delayed
-            rewards from recorded public market events. This trains the
-            allocation gate. The three fast expert rules stay fixed; the
-            terminal also shows a separately trained tiny neural expert as an
-            experimental signal.
+            rewards from recorded public market{" "}
+            {historical ? "candles" : "events"}. This trains the allocation
+            gate. The three fast expert rules stay fixed; the terminal also
+            shows a separately trained tiny neural expert as an experimental
+            signal.
           </p>
         </div>
       </div>
@@ -420,6 +440,24 @@ export function TrainingLab() {
         )}
       </div>
       <TrainingProgress data={data} />
+      {historical && (
+        <aside
+          className="training-mode-banner"
+          aria-label="Historical training limitations"
+        >
+          <strong>Historical candle proxy training</strong>
+          <p>
+            30 one-second frames predict a five-second close-price move. Flow
+            and reversion use candle data. Spread, book imbalance, microprice
+            and quote updates are unavailable and zero-filled. This cannot
+            validate order-book strategies, and this model is not compatible
+            with the live terminal.
+          </p>
+          {data?.dataset?.limitations?.map((limitation, index) => (
+            <p key={index}>{limitation}</p>
+          ))}
+        </aside>
+      )}
       {data?.error && (
         <p className="training-run-error" role="alert">
           Run failed: {data.error}
@@ -435,7 +473,7 @@ export function TrainingLab() {
         <span>04 · updated weights</span>
       </div>
       <div className="training-forward">
-        <InputWindow step={step} />
+        <InputWindow step={step} dataset={data?.dataset ?? null} />
         <TrainingNetwork step={step} dataset={data?.dataset ?? null} />
         <Outputs step={step} />
       </div>

@@ -68,11 +68,10 @@ def test_sigterm_cancels_remote_call_despite_modal_keyboard_interrupt_suppressio
         "check_output",
         lambda command, cwd: (sources / command[-1].split("/")[-1]).read_bytes(),
     )
-    monkeypatch.setattr(training, "load_recording", lambda path: [])
     monkeypatch.setattr(
-        training,
-        "build_frame_dataset",
-        lambda events: SimpleNamespace(values=[], mids=[], close_ts_ms=[]),
+        training_lab,
+        "load_lab_dataset",
+        lambda path: (SimpleNamespace(values=[], mids=[], close_ts_ms=[]), {}),
     )
     monkeypatch.setattr(training, "build_examples", lambda *args, **kwargs: [])
     monkeypatch.setattr(training_lab, "split_lab_examples", lambda *args: None)

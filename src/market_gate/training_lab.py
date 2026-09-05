@@ -36,6 +36,32 @@ MAX_RECORDING_BYTES = 100_000_000
 MAX_FRAMES = 20_000
 
 
+def load_lab_dataset(path: Path):
+    """Load real book/trade frames or explicitly identified historical candle proxies."""
+    if not path.is_file() or path.stat().st_size > MAX_RECORDING_BYTES:
+        raise ValueError("recording must exist and be at most 100 MB")
+    with path.open(encoding="utf-8") as handle:
+        first = next((json.loads(line) for line in handle if line.strip()), None)
+    if isinstance(first, dict) and first.get("kind") == "candle":
+        from .historical import load_candle_frames
+
+        dataset, metadata = load_candle_frames(path)
+    else:
+        events = load_recording(path)
+        dataset = build_frame_dataset(events)
+        metadata = {
+            "symbol": events[0].symbol,
+            "venue": events[0].venue,
+            "event_count": len(events),
+            "feature_names": FEATURE_NAMES,
+            "source_mode": "recorded market replay",
+            "limitations": [],
+        }
+    if len(dataset.values) > MAX_FRAMES:
+        raise ValueError(f"bounded teaching run supports at most {MAX_FRAMES} closed frames")
+    return dataset, metadata
+
+
 def split_lab_examples(examples: list[TrainingExample], frame_count: int, max_rl_steps: int):
     """Disjoint 50/30/20 periods, including the hidden feature-history dependency."""
     first, second = int(frame_count * 0.5), int(frame_count * 0.8)
@@ -83,7 +109,7 @@ def _forward(model, inputs):
     return logits, torch.softmax(logits, dim=-1), hidden_1, hidden_2
 
 
-def _export(model, mean, scale, destination: Path):
+def _export(model, mean, scale, destination: Path, *, teaching_only: bool = False):
     """Fold train-only normalization into the portable raw-input first layer."""
     import torch
 
@@ -96,7 +122,7 @@ def _export(model, mean, scale, destination: Path):
         exported[0].weight.copy_(weight / scale)
         exported[0].bias.copy_(model[0].bias.double() - (weight * (mean / scale)).sum(dim=1))
     widths = [exported[0].out_features, exported[2].out_features]
-    if widths == [64, 32]:
+    if widths == [64, 32] and not teaching_only:
         _save_gate_model(exported, destination)
     else:
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -190,7 +216,9 @@ def train_lab(
     recording_path, output_dir = Path(recording_path), Path(output_dir)
     if not recording_path.is_file() or recording_path.stat().st_size > MAX_RECORDING_BYTES:
         raise ValueError("recording must exist and be at most 100 MB")
-    runtime_compatible = [options.hidden_1, options.hidden_2] == [64, 32]
+    dataset, input_metadata = load_lab_dataset(recording_path)
+    candle_mode = input_metadata["source_mode"] == "historical_candles_1s"
+    runtime_compatible = [options.hidden_1, options.hidden_2] == [64, 32] and not candle_mode
     artifact_prefix = "gate" if runtime_compatible else "training-mlp"
     artifact_schema = "gate-npz-v1" if runtime_compatible else "training-mlp-v1"
     paths = {
@@ -206,10 +234,6 @@ def train_lab(
     torch.set_num_threads(1)
     torch.use_deterministic_algorithms(True)
     torch.manual_seed(seed)
-    events = load_recording(recording_path)
-    dataset = build_frame_dataset(events)
-    if len(dataset.values) > MAX_FRAMES:
-        raise ValueError(f"bounded teaching run supports at most {MAX_FRAMES} closed frames")
     examples = build_examples(
         dataset.values, dataset.mids, LOOKBACK, HORIZON, close_ts_ms=dataset.close_ts_ms
     )
@@ -230,15 +254,15 @@ def train_lab(
         "epochs": epochs,
         "learning_rate": learning_rate,
         "runtime_compatible": runtime_compatible,
-        "symbol": events[0].symbol,
-        "venue": events[0].venue,
-        "event_count": len(events),
+        "symbol": input_metadata["symbol"],
+        "venue": input_metadata["venue"],
+        "event_count": input_metadata["event_count"],
         "frame_count": len(dataset.values),
         "supervised_examples": len(supervised),
         "rl_examples": len(rl),
         "holdout_examples": len(holdout),
         "sha256": file_sha256(recording_path),
-        "feature_names": FEATURE_NAMES,
+        "feature_names": input_metadata["feature_names"],
         "expert_names": list(EXPERT_NAMES),
         "lookback_frames": LOOKBACK,
         "horizon_frames": HORIZON,
@@ -251,7 +275,10 @@ def train_lab(
         "rl_last_target_ts_ms": rl[-1].target_ts_ms,
         "holdout_first_start_ts_ms": holdout[0].start_ts_ms,
         "holdout_last_target_ts_ms": holdout[-1].target_ts_ms,
-        "source_mode": "recorded market replay",
+        "source_mode": input_metadata["source_mode"],
+        "limitations": input_metadata["limitations"],
+        "target_price": "candle close" if candle_mode else "book mid",
+        "candle_count": input_metadata.get("candle_count", 0),
     }
     yield _event({"kind": "dataset", "dataset": dataset_info})
     model = _make_model(options.hidden_1, options.hidden_2)
@@ -353,8 +380,8 @@ def train_lab(
         },
     }
     output_dir.mkdir(parents=True, exist_ok=True)
-    _export(supervised_model, mean, scale, paths["supervised"])
-    _export(model, mean, scale, paths["adapted"])
+    _export(supervised_model, mean, scale, paths["supervised"], teaching_only=candle_mode)
+    _export(model, mean, scale, paths["adapted"], teaching_only=candle_mode)
     artifacts = {
         name: {
             "path": str(path),
@@ -397,6 +424,7 @@ def train_lab(
                 name: file_sha256(Path(__file__).parent / name)
                 for name in (
                     "training_lab.py",
+                    "historical.py",
                     "training_options.py",
                     "training.py",
                     "features.py",
@@ -414,11 +442,14 @@ def train_lab(
         "limitations": [
             "Online policy updates consume recorded public data, not a live exchange feed.",
             "REINFORCE is an expert-selection contextual bandit, not an execution simulator.",
-            "Rewards are future-mid expert proxies; they are not fills or realized trading P&L.",
+            "Rewards use future candle-close proxy utility, not fills or realized trading P&L."
+            if candle_mode
+            else "Rewards are future-mid expert proxies; not fills or realized trading P&L.",
             "Offline event-time ordering differs from live Binance receive-time sequencing.",
             "quote_updates counts retained recorded books after sampling, not all live updates.",
             "Held-out windows overlap; this short experiment does not establish generalisation.",
             "Outputs are separate teaching artifacts; the live inference model is not replaced.",
+            *input_metadata["limitations"],
         ],
     }
     _event(receipt)

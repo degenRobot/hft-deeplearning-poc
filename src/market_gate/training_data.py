@@ -64,6 +64,8 @@ def inspect_recording(root: Path, path: Path, dataset_id: str) -> dict:
         "event_count": 0,
         "book_count": 0,
         "trade_count": 0,
+        "candle_count": 0,
+        "source_mode": "recorded market replay",
         "bytes": 0,
         "first_event_ts_ms": None,
         "last_event_ts_ms": None,
@@ -81,24 +83,47 @@ def inspect_recording(root: Path, path: Path, dataset_id: str) -> dict:
         return result
     result["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
     try:
-        events = load_recording(path)
-        if len(events) > MAX_EVENTS or any(
-            e.symbol != SYMBOL or e.venue != "binance" for e in events
-        ):
-            raise ValueError("Capture must contain at most 500000 public Binance BTCUSDT events")
-        result.update(
-            event_count=len(events),
-            book_count=sum(isinstance(e, BookEvent) for e in events),
-            trade_count=sum(not isinstance(e, BookEvent) for e in events),
-            first_event_ts_ms=min(e.event_ts_ms for e in events),
-            last_event_ts_ms=max(e.event_ts_ms for e in events),
-        )
-        frames = build_frame_dataset(events)
+        with path.open(encoding="utf-8") as recording:
+            first = next((json.loads(line) for line in recording if line.strip()), {})
+        if isinstance(first, dict) and first.get("kind") == "candle":
+            from .historical import load_candle_frames
+
+            frames, metadata = load_candle_frames(path)
+            if metadata["event_count"] > MAX_EVENTS:
+                raise ValueError("Historical recording exceeds the event limit")
+            result.update(
+                label="Historical Binance 1s candles",
+                source="binance_historical_candles",
+                source_mode="historical_candles_1s",
+                symbol=metadata["symbol"],
+                event_count=metadata["event_count"],
+                candle_count=metadata["candle_count"],
+                first_event_ts_ms=metadata.get("first_event_ts_ms", int(frames.close_ts_ms[0])),
+                last_event_ts_ms=metadata.get("last_event_ts_ms", int(frames.close_ts_ms[-1])),
+                feature_names=metadata["feature_names"],
+                limitations=metadata.get("limitations", []),
+            )
+        else:
+            events = load_recording(path)
+            if len(events) > MAX_EVENTS or any(
+                e.symbol != SYMBOL or e.venue != "binance" for e in events
+            ):
+                raise ValueError(
+                    "Capture must contain at most 500000 public Binance BTCUSDT events"
+                )
+            result.update(
+                event_count=len(events),
+                book_count=sum(isinstance(e, BookEvent) for e in events),
+                trade_count=sum(not isinstance(e, BookEvent) for e in events),
+                first_event_ts_ms=min(e.event_ts_ms for e in events),
+                last_event_ts_ms=max(e.event_ts_ms for e in events),
+            )
+            frames = build_frame_dataset(events)
         result["frame_count"] = len(frames.values)
         examples = build_examples(frames.values, frames.mids, 30, 5, close_ts_ms=frames.close_ts_ms)
         split_lab_examples(examples, len(frames.values), 15)
         result["training_ready"] = True
-    except ValueError as error:
+    except (ValueError, KeyError, TypeError, IndexError, UnicodeError) as error:
         # Split failures are useful explanations; malformed-file errors can contain paths.
         message = str(error)
         result["error"] = (
@@ -193,7 +218,15 @@ class PublicDatasetService:
         return path
 
     def start(self, seconds: int) -> dict:
-        seconds = _duration(seconds)
+        return self._start(_duration(seconds))
+
+    def start_history(self, symbol: str, start: str, end: str) -> dict:
+        from .historical import validate_history_request
+
+        request = validate_history_request(symbol, start, end)
+        return self._start(request["seconds"], history=request)
+
+    def _start(self, seconds: int, *, history: dict | None = None) -> dict:
         with self._mutex:
             if self.process is not None and self.process.poll() is None:
                 raise ValueError("Another public data capture is active")
@@ -204,12 +237,14 @@ class PublicDatasetService:
                 state["capture"] = {
                     "id": capture_id,
                     "status": "running",
+                    "mode": "historical" if history else "live",
                     "requested_seconds": seconds,
                     "elapsed_seconds": 0.0,
                     "progress": 0.0,
                     "events": 0,
                     "book_count": 0,
                     "trade_count": 0,
+                    "candle_count": 0,
                     "bytes": 0,
                     "first_event_ts_ms": None,
                     "last_event_ts_ms": None,
@@ -218,10 +253,12 @@ class PublicDatasetService:
                     "updated_at": _now(),
                     "error": None,
                     "can_stop": True,
-                    "symbol": SYMBOL,
-                    "source": "binance_public",
+                    "symbol": history["symbol"] if history else SYMBOL,
+                    "source": "binance_historical_candles" if history else "binance_public",
                     "sha256": None,
                 }
+                if history:
+                    state["capture"].update(start=history["start"], end=history["end"])
                 _write_state(self.path, state)
                 command = [
                     sys.executable,
@@ -233,6 +270,17 @@ class PublicDatasetService:
                     "--lock-fd",
                     str(lock.fileno()),
                 ]
+                if history:
+                    command += [
+                        "--mode",
+                        "historical",
+                        "--symbol",
+                        history["symbol"],
+                        "--start",
+                        history["start"],
+                        "--end",
+                        history["end"],
+                    ]
                 with (self.path.parent / f"training-data-{capture_id}.log").open("x") as log:
                     self.process = subprocess.Popen(
                         command, cwd=self.root, stdout=log, stderr=log, pass_fds=(lock.fileno(),)
@@ -273,9 +321,17 @@ async def capture_dataset(
     *,
     lock_fd: int | None = None,
     heartbeat_seconds: float = 0.5,
+    history: dict | None = None,
 ) -> dict:
-    """Worker entry point; recorder is the existing bounded public stream implementation."""
-    _duration(seconds)
+    """Run either public recorder under the shared capture owner and validation lifecycle."""
+    if history is None:
+        _duration(seconds)
+    else:
+        from .historical import validate_history_request
+
+        history = validate_history_request(history["symbol"], history["start"], history["end"])
+        if seconds != history["seconds"]:
+            raise ValueError("Historical duration does not match the requested interval")
     root = Path(root).resolve()
     output = _capture_path(root, capture_id)
     service = PublicDatasetService(root)
@@ -292,6 +348,11 @@ async def capture_dataset(
     if capture.get("id") != capture_id or capture.get("status") != "running":
         lock.close()
         raise ValueError("Capture request does not match the current state")
+    if history is not None and any(
+        capture.get(key) != history[key] for key in ("symbol", "start", "end")
+    ):
+        lock.close()
+        raise ValueError("Historical request does not match the current state")
     started = time.monotonic()
     stop_heartbeat = threading.Event()
     mutex = threading.RLock()
@@ -301,7 +362,9 @@ async def capture_dataset(
             elapsed = time.monotonic() - started
             capture.update(
                 elapsed_seconds=round(elapsed, 3),
-                progress=1.0 if capture["status"] == "completed" else min(elapsed / seconds, 0.99),
+                progress=1.0
+                if capture["status"] == "completed"
+                else min(capture.get("progress", 0.0) if history else elapsed / seconds, 0.99),
                 updated_at=_now(),
             )
             _write_state(service.path, state)
@@ -312,12 +375,17 @@ async def capture_dataset(
                 events=receipt["total"],
                 book_count=receipt["book"],
                 trade_count=receipt["trade"],
+                candle_count=receipt.get("candle", 0),
                 bytes=receipt["bytes"],
                 first_event_ts_ms=receipt["first_event_ts_ms"],
                 last_event_ts_ms=receipt["last_event_ts_ms"],
                 feed_status=receipt["feed_status"],
                 reconnects=receipt["reconnects"],
             )
+            if history:
+                capture["progress"] = max(0.0, min(float(receipt["progress"]), 0.99))
+                capture["coverage_fraction"] = receipt.get("coverage_fraction", 0.0)
+                capture["missing_candle_count"] = receipt.get("missing_candle_count", seconds)
 
     def heartbeat():
         while not stop_heartbeat.wait(heartbeat_seconds):
@@ -330,7 +398,7 @@ async def capture_dataset(
         try:
             result = await recorder(
                 output,
-                SYMBOL,
+                history["symbol"] if history else SYMBOL,
                 seconds,
                 MAX_EVENTS,
                 BOOK_INTERVAL_MS,
@@ -338,6 +406,14 @@ async def capture_dataset(
                 progress_callback=progress,
             )
             capture["stop_reason"] = result["stop_reason"]
+            if history and result["stop_reason"] == "source_exhausted":
+                status, error = (
+                    "incomplete",
+                    (
+                        "Binance returned no further candles before the requested end. "
+                        "The previous dataset remains selected; try another UTC range."
+                    ),
+                )
         except asyncio.CancelledError:
             status = "stopped"
         except Exception:
@@ -369,6 +445,7 @@ async def capture_dataset(
                 events=metadata["event_count"],
                 book_count=metadata["book_count"],
                 trade_count=metadata["trade_count"],
+                candle_count=metadata.get("candle_count", 0),
                 bytes=metadata["bytes"],
                 first_event_ts_ms=metadata["first_event_ts_ms"],
                 last_event_ts_ms=metadata["last_event_ts_ms"],

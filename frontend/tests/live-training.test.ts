@@ -53,6 +53,19 @@ function wire(run = "r1"): LiveTraining {
   };
 }
 describe("training contract", () => {
+  it("validates optional candle feature metadata without rejecting legacy receipts", () => {
+    const value = wire();
+    value.dataset!.source_mode = "historical_candles_1s";
+    value.dataset!.limitations = ["No order book data"];
+    value.dataset!.feature_names = Array.from(
+      { length: 10 },
+      (_, i) => `Feature ${i}`,
+    );
+    expect(parseLiveTraining(value)).not.toBeNull();
+    value.dataset!.feature_names.pop();
+    expect(parseLiveTraining(value)).toBeNull();
+    expect(parseLiveTraining(wire())).not.toBeNull();
+  });
   it("accepts actual signed RL loss and empty idle telemetry", () => {
     expect(parseLiveTraining(wire())).not.toBeNull();
     expect(

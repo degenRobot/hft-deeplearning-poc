@@ -73,7 +73,58 @@ windows. Numbers are mean expert-proxy utility in basis points, not simulated fi
 fees-adjusted returns or trading P&L. Overlapping windows and a short sample do not
 establish generalization. The adapted model can underperform a simple baseline.
 
-## Data and reproduction
+## Historical data by pair and UTC range
+
+The Training Lab defaults to **Historical candles**. Select BTCUSDT, ETHUSDT,
+SOLUSDT, BNBUSDT, XRPUSDT or DOGEUSDT, enter a UTC start/end time, and fetch
+10 minutes to five hours of one-second spot candles. The end is exclusive.
+No API key is required. This uses Binance's public market-data REST endpoint,
+with pagination, bounded retries and immutable local files.
+
+The implementation follows the paginated downloader approach used in
+`clob-risk-modelling/risk-model/scripts/download_klines.py`; that repository
+remains unchanged. A standalone fetch command is included here:
+
+```sh
+uv run python scripts/fetch_training_history.py --symbol ETHUSDT \
+  --start 2026-09-01T00:00:00Z --end 2026-09-01T00:15:00Z \
+  --output data/eth-historical-example.jsonl
+uv run python scripts/run_training_lab.py --input data/eth-historical-example.jsonl \
+  --output artifacts/my-historical-training --pace 0.25
+```
+
+Files retain native candles: OHLC, volume, taker-buy volume and trade counts.
+They contain no invented bid/ask events. The historical training profile uses
+candle-close returns, volatility, signed taker-volume flow, trade counts and
+close-price reversion. Spread, book imbalance, microprice displacement and
+quote-update count are unavailable and set to zero. The microprice expert
+therefore has a neutral proxy signal. Its zero utility acts as a baseline while
+the gate learns to allocate between directional flow/reversion and neutrality.
+
+A frame becomes available only after its candle closes. Missing seconds stay
+missing, reset feature history, and exclude windows that cross a gap. Targets
+use the close price five seconds after the input window, with the same
+chronological split and embargo as book/trade training. Normalization is fitted
+only on the supervised prefix. UI labels and receipts identify this profile.
+Even a 64/32 historical model uses the teaching-only artifact schema, which the
+live book-based gate rejects. This demonstrates real learning on real historical
+prices; it cannot validate bid/ask execution or order-book strategies.
+
+Successful, trainable downloads become the dataset for the next local or Modal
+run. Download progress measures coverage of the requested market period, while
+elapsed time measures the fetch job. Stopped, failed or insufficient downloads
+retain the previous selected dataset. An active training run keeps its original
+input. The one-second resolution and five-hour limit keep this interactive demo
+within its existing frame/memory bounds.
+
+[Binance's public-data repository](https://github.com/binance/binance-public-data)
+also provides free daily/monthly archives for larger offline datasets.
+[REST kline documentation](https://developers.binance.com/docs/binance-spot-api-docs/rest-api/market-data-endpoints)
+describes the fields and time-range parameters. Futures bid/ask archives are a
+separate possible source, with availability depending on the date and large
+per-day files. This UI currently uses spot candles.
+
+## Live books and trades: data and reproduction
 
 The public source combines Binance `bookTicker` and `aggTrade`. This capture samples
 books at 100 ms and retains aggregate trades. `quote_updates` consequently counts
@@ -96,7 +147,7 @@ uv run python scripts/run_training_lab.py --input data/training-public.jsonl \
   --output artifacts/my-local-training --pace 0.25
 ```
 
-The browser starts with `data/training-public.jsonl`. **Data for your next run**
+The browser starts with `data/training-public.jsonl` until a valid dataset is fetched. **Data for your next run**
 shows the selected recording's public source, event counts, time span and SHA-256.
 Choose a duration from 30 to 1,800 seconds and capture a new range starting now.
 This uses `scripts/capture_training_data.py` and the public Binance recorder; it

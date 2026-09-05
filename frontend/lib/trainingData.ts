@@ -6,6 +6,8 @@ export interface PublicTrainingData {
     symbol: string;
     path: string;
     event_count: number;
+    candle_count?: number;
+    source_mode?: string;
     book_count: number;
     trade_count: number;
     bytes: number;
@@ -16,6 +18,10 @@ export interface PublicTrainingData {
     error: string | null;
   };
   capture: {
+    coverage_fraction?: number;
+    missing_candle_count?: number;
+    mode?: "live" | "historical";
+    candle_count?: number;
     id: string | null;
     status: string;
     can_stop: boolean;
@@ -52,6 +58,15 @@ export function parsePublicTrainingData(v: unknown): PublicTrainingData | null {
       (x) => typeof x === "string",
     ) ||
     ![s.event_count, s.book_count, s.trade_count, s.bytes].every(count) ||
+    !(s.candle_count === undefined || count(s.candle_count)) ||
+    !(s.source_mode === undefined || typeof s.source_mode === "string") ||
+    !(c.mode === undefined || c.mode === "live" || c.mode === "historical") ||
+    !(c.candle_count === undefined || count(c.candle_count)) ||
+    !(c.missing_candle_count === undefined || count(c.missing_candle_count)) ||
+    !(
+      c.coverage_fraction === undefined ||
+      (nonnegative(c.coverage_fraction) && c.coverage_fraction <= 1)
+    ) ||
     ![s.first_event_ts_ms, s.last_event_ts_ms].every(
       (x) =>
         x === null ||
@@ -93,7 +108,10 @@ export function parsePublicTrainingData(v: unknown): PublicTrainingData | null {
     (typeof s.first_event_ts_ms === "number" &&
       typeof s.last_event_ts_ms === "number" &&
       s.first_event_ts_ms > s.last_event_ts_ms) ||
-    Number(s.book_count) + Number(s.trade_count) !== s.event_count
+    Number(s.book_count) +
+      Number(s.trade_count) +
+      Number(s.candle_count ?? 0) !==
+      s.event_count
   )
     return null;
   const active = ACTIVE_CAPTURE_STATES.includes(String(c.status));
@@ -105,8 +123,8 @@ export function parsePublicTrainingData(v: unknown): PublicTrainingData | null {
       !validDate(c.updated_at) ||
       !nonnegative(c.elapsed_seconds) ||
       !count(c.requested_seconds) ||
-      c.requested_seconds < 30 ||
-      c.requested_seconds > 1800 ||
+      c.requested_seconds < (c.mode === "historical" ? 600 : 30) ||
+      c.requested_seconds > (c.mode === "historical" ? 18000 : 1800) ||
       !count(c.events) ||
       !count(c.bytes) ||
       !nonnegative(c.progress))
@@ -125,4 +143,62 @@ export function captureIsStale(
     (!capture.updated_at ||
       now - Date.parse(capture.updated_at) > CAPTURE_STALE_MS)
   );
+}
+
+export const HISTORY_SYMBOLS = [
+  "BTCUSDT",
+  "ETHUSDT",
+  "SOLUSDT",
+  "BNBUSDT",
+  "XRPUSDT",
+  "DOGEUSDT",
+] as const;
+export interface HistoricalRequest {
+  symbol: string;
+  start: string;
+  end: string;
+}
+// datetime-local is used for its picker only: these fields always represent UTC.
+export function historicalRequest(
+  symbol: string,
+  start: string,
+  end: string,
+  now: number,
+): HistoricalRequest | null {
+  const utc = (value: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(value)) return null;
+    const normalized = value.length === 16 ? `${value}:00` : value;
+    const ms = Date.parse(`${normalized}Z`);
+    if (
+      !Number.isFinite(ms) ||
+      new Date(ms).toISOString().slice(0, 19) !== normalized
+    )
+      return null;
+    return ms;
+  };
+  const first = utc(start),
+    last = utc(end);
+  if (
+    !HISTORY_SYMBOLS.some((s) => s === symbol) ||
+    first === null ||
+    last === null ||
+    last > Math.floor(now / 1000) * 1000 ||
+    last - first < 600_000 ||
+    last - first > 18_000_000
+  )
+    return null;
+  return {
+    symbol,
+    start: new Date(first).toISOString(),
+    end: new Date(last).toISOString(),
+  };
+}
+export function defaultHistoricalRange(now: number) {
+  const day = new Date(now);
+  day.setUTCDate(day.getUTCDate() - 1);
+  day.setUTCHours(0, 0, 0, 0);
+  return {
+    start: day.toISOString().slice(0, 19),
+    end: new Date(day.getTime() + 900_000).toISOString().slice(0, 19),
+  };
 }

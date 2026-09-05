@@ -3,6 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import { API_DEFAULT } from "../lib/connection";
 import {
   parsePublicTrainingData,
+  historicalRequest,
+  defaultHistoricalRange,
+  HISTORY_SYMBOLS,
+  type HistoricalRequest,
   captureIsStale,
   ACTIVE_CAPTURE_STATES,
   type PublicTrainingData,
@@ -17,19 +21,38 @@ const time = (ms: number | null | undefined) =>
 export function TrainingDataset() {
   const [data, setData] = useState<PublicTrainingData | null>(null);
   const [seconds, setSeconds] = useState(900);
+  const [mode, setMode] = useState("historical");
+  const [observedNow, setObservedNow] = useState(0);
+  const [symbol, setSymbol] = useState("BTCUSDT");
+  const [range, setRange] = useState({ start: "", end: "" });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [stale, setStale] = useState(false);
   const command = useRef<
-    ((action: "start" | "stop", seconds: number) => Promise<void>) | null
+    | ((
+        action: "start" | "stop" | "history",
+        payload?: number | HistoricalRequest,
+      ) => Promise<void>)
+    | null
   >(null);
   useEffect(() => {
     let disposed = false,
       version = 0,
       busy = false;
+    // Initialize the UTC picker after mounting, without a server/client date mismatch.
+    void Promise.resolve().then(() => {
+      if (!disposed) {
+        const now = Date.now();
+        setRange(defaultHistoricalRange(now));
+        setObservedNow(now);
+      }
+    });
     let timer: ReturnType<typeof setTimeout>;
     let controller: AbortController | null = null;
-    const request = async (action?: "start" | "stop", duration?: number) => {
+    const request = async (
+      action?: "start" | "stop" | "history",
+      payload?: number | HistoricalRequest,
+    ) => {
       const epoch = ++version;
       controller?.abort();
       const current = new AbortController();
@@ -53,11 +76,31 @@ export function TrainingDataset() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(
-              action === "start" ? { seconds: duration } : {},
+              action === "start"
+                ? { seconds: payload }
+                : action === "history"
+                  ? payload
+                  : {},
             ),
             signal: current.signal,
           });
-          if (!r.ok) throw new Error(`Capture ${action} returned ${r.status}`);
+          if (!r.ok) {
+            let detail: unknown;
+            if (r.status === 400) {
+              try {
+                detail = (await r.json())?.detail;
+              } catch {
+                /* Use status if no JSON detail. */
+              }
+            }
+            throw new Error(
+              typeof detail === "string" &&
+              detail.length > 0 &&
+              detail.length <= 500
+                ? detail
+                : `Public data ${action} returned ${r.status}`,
+            );
+          }
         }
         if (disposed || epoch !== version || current.signal.aborted) return;
         const r = await fetch(`${API}/training/data`, {
@@ -71,6 +114,7 @@ export function TrainingDataset() {
         if (!disposed && epoch === version) {
           const outdated = captureIsStale(parsed.capture, Date.now());
           setData(parsed);
+          setObservedNow(Date.now());
           setStale(outdated);
           setError(
             outdated
@@ -119,32 +163,51 @@ export function TrainingDataset() {
   const selected = data?.selected,
     capture = data?.capture;
   const active = !!capture && ACTIVE_CAPTURE_STATES.includes(capture.status);
-  const valid = Number.isInteger(seconds) && seconds >= 30 && seconds <= 1800;
+  const liveValid =
+    Number.isInteger(seconds) && seconds >= 30 && seconds <= 1800;
+  const history = historicalRequest(
+    symbol,
+    range.start,
+    range.end,
+    observedNow,
+  );
+  const valid = mode === "historical" ? !!history : liveValid;
+  const historical =
+    selected?.source_mode === "historical_candles_1s" ||
+    selected?.source === "binance_historical_candles";
+  const downloading = capture?.mode === "historical";
   return (
     <section className="training-dataset" aria-label="Public training dataset">
       <span className="flow-kicker">PUBLIC DATA / YOUR NEXT TRAINING RUN</span>
-      <h2>Learn from real books and trades.</h2>
+      <h2>Choose a pair and a past time range.</h2>
       <p>
-        Binance public BTCUSDT best bid / ask prices and sizes, plus aggregate
-        trades. We retain at most one book update per 100 ms and every trade
-        within the capture limits. These become 10 features per observed second;
-        training takes 30-frame windows and a delayed 5-second learning target.
+        Fetch free Binance historical 1-second candles without an API key, or
+        capture a live stream. Both feed 30-frame windows and a delayed 5-second
+        learning target.
       </p>
       {selected && (
         <>
           <div className="dataset-facts">
             <span>
-              <strong>{selected.event_count.toLocaleString()}</strong>public
-              events
+              <strong>{selected.event_count.toLocaleString()}</strong>
+              {historical ? "candles" : "public events"}
             </span>
-            <span>
-              <strong>{selected.book_count.toLocaleString()}</strong>book
-              updates
-            </span>
-            <span>
-              <strong>{selected.trade_count.toLocaleString()}</strong>aggregate
-              trades
-            </span>
+            {historical ? (
+              <span>
+                <strong>1 second</strong>OHLCV candle interval
+              </span>
+            ) : (
+              <>
+                <span>
+                  <strong>{selected.book_count.toLocaleString()}</strong>book
+                  updates
+                </span>
+                <span>
+                  <strong>{selected.trade_count.toLocaleString()}</strong>
+                  aggregate trades
+                </span>
+              </>
+            )}
             <span>
               <strong>{(selected.bytes / 1e6).toFixed(2)} MB</strong>
               {selected.training_ready
@@ -157,6 +220,11 @@ export function TrainingDataset() {
             <br />
             {time(selected.first_event_ts_ms)} →{" "}
             {time(selected.last_event_ts_ms)}
+          </p>
+          <p>
+            {historical
+              ? "Historical OHLCV, taker-buy volume and trade counts support close-price, flow and reversion proxies. Spread, book imbalance, microprice and quote updates are unavailable and zero-filled. This dataset cannot validate order-book strategies."
+              : `${selected.symbol} best bid / ask prices and sizes, plus aggregate trades. Live captures retain at most one book update per 100 ms and every trade within the capture limits.`}
           </p>
           {selected.error && <p role="status">{selected.error}</p>}
           <details>
@@ -176,65 +244,148 @@ export function TrainingDataset() {
           </details>
         </>
       )}
-      <p>
-        <b>Capture a new time range, starting now.</b> Choose 30–1,800 seconds;
-        900 seconds is the working example. This records a live public stream,
-        not a historical download. Older trades and candles alone cannot
-        reconstruct the required bid/ask features.
-      </p>
       <div className="training-capture-controls">
         <label>
-          Capture duration (seconds)
-          <input
-            type="number"
-            min={30}
-            max={1800}
-            step={30}
-            value={Number.isFinite(seconds) ? seconds : ""}
+          Data acquisition
+          <select
+            value={mode}
             disabled={pending || active}
-            onChange={(e) =>
-              setSeconds(e.target.value === "" ? NaN : Number(e.target.value))
-            }
-          />
+            onChange={(e) => setMode(e.target.value)}
+          >
+            <option value="historical">Historical data</option>
+            <option value="live">Live capture</option>
+          </select>
         </label>
+        {mode === "historical" ? (
+          <>
+            <label>
+              Trading pair
+              <select
+                value={symbol}
+                disabled={pending || active}
+                onChange={(e) => setSymbol(e.target.value)}
+              >
+                {HISTORY_SYMBOLS.map((pair) => (
+                  <option key={pair} value={pair}>
+                    {pair}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Start (UTC, inclusive)
+              <input
+                type="datetime-local"
+                step={1}
+                value={range.start}
+                disabled={pending || active}
+                onInput={(e) => {
+                  const value = e.currentTarget.value;
+                  setRange((r) => ({ ...r, start: value }));
+                }}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setRange((r) => ({ ...r, start: value }));
+                }}
+              />
+            </label>
+            <label>
+              End (UTC, exclusive)
+              <input
+                type="datetime-local"
+                step={1}
+                value={range.end}
+                disabled={pending || active}
+                onInput={(e) => {
+                  const value = e.currentTarget.value;
+                  setRange((r) => ({ ...r, end: value }));
+                }}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setRange((r) => ({ ...r, end: value }));
+                }}
+              />
+            </label>
+          </>
+        ) : (
+          <label>
+            Capture duration (seconds)
+            <input
+              type="number"
+              min={30}
+              max={1800}
+              step={30}
+              value={Number.isFinite(seconds) ? seconds : ""}
+              disabled={pending || active}
+              onChange={(e) =>
+                setSeconds(e.target.value === "" ? NaN : Number(e.target.value))
+              }
+            />
+          </label>
+        )}
         <button
           className="button primary"
           disabled={!data || !valid || pending || active}
-          onClick={() => void command.current?.("start", seconds)}
+          onClick={() => {
+            if (mode === "historical") {
+              if (history) void command.current?.("history", history);
+            } else void command.current?.("start", seconds);
+          }}
         >
-          {pending ? "Updating capture…" : "Capture more public data"}
+          {pending
+            ? "Updating data…"
+            : mode === "historical"
+              ? "Fetch historical data"
+              : "Capture more public data"}
         </button>
         <button
           className="button ghost"
           disabled={pending || !capture?.can_stop}
-          onClick={() => void command.current?.("stop", seconds)}
+          onClick={() => void command.current?.("stop")}
         >
           Stop capture
         </button>
       </div>
+      {mode === "historical" ? (
+        <p className="flow-footnote">
+          Enter UTC times, regardless of your device timezone. Choose a closed
+          past range of 10 minutes to 5 hours in whole seconds; the end second
+          is excluded.
+        </p>
+      ) : (
+        <p className="flow-footnote">
+          Captures live books and trades starting now for 30–1,800 seconds.
+        </p>
+      )}
       {!valid && (
-        <p role="alert">Enter a whole duration from 30 to 1,800 seconds.</p>
+        <p role="alert">
+          {mode === "historical"
+            ? "Choose a valid past UTC range of 10 minutes to 5 hours, in whole seconds."
+            : "Enter a whole duration from 30 to 1,800 seconds."}
+        </p>
       )}
       <p className="flow-footnote">
         Runs the{" "}
         <a
-          href="https://github.com/degenRobot/hft-deeplearning-poc/blob/codex/live-training-lab/scripts/capture_training_data.py"
+          href={`https://github.com/degenRobot/hft-deeplearning-poc/blob/codex/live-training-lab/scripts/${mode === "historical" ? "fetch_training_history" : "capture_training_data"}.py`}
           target="_blank"
           rel="noreferrer"
         >
-          public capture script ↗
+          {mode === "historical"
+            ? "historical download script"
+            : "public capture script"}{" "}
+          ↗
         </a>{" "}
-        locally, with 100 MB / 500,000-event caps. A completed capture becomes
-        the next training dataset only after the chronological split checks
-        pass. Short or interrupted captures are retained; the previous dataset
-        stays selected. An active training run keeps its original data.
+        locally. A dataset becomes selected only after chronological split
+        checks pass. Short or interrupted acquisitions retain the previous
+        selection. An active training run keeps its original data.
       </p>
       {capture && !stale && capture.status !== "idle" && (
         <div aria-label="Capture progress">
           <strong>
             {capture.status === "validating"
               ? "Checking the training split"
-              : `Capture ${capture.status}`}{" "}
+              : `${downloading ? "Historical download" : "Capture"} ${capture.status}`}{" "}
             ·{" "}
             {capture.progress == null
               ? "—"
@@ -242,24 +393,47 @@ export function TrainingDataset() {
           </strong>
           {capture.progress != null && (
             <progress
-              aria-label="Public data capture completion"
+              aria-label={
+                downloading
+                  ? "Historical time range processed"
+                  : "Public data capture completion"
+              }
               max={1}
               value={capture.progress}
             />
           )}
           <p>
-            {capture.elapsed_seconds == null
-              ? "—"
-              : Math.round(capture.elapsed_seconds)}{" "}
-            / {capture.requested_seconds ?? "—"}s ·{" "}
-            {capture.events == null ? "—" : capture.events.toLocaleString()}{" "}
-            events ·{" "}
+            {downloading ? (
+              <>
+                {capture.candle_count ?? capture.events ?? "—"} candles ·{" "}
+                {capture.requested_seconds ?? "—"}s requested market span
+              </>
+            ) : (
+              <>
+                {capture.events == null ? "—" : capture.events.toLocaleString()}{" "}
+                events · {capture.requested_seconds ?? "—"}s requested capture
+              </>
+            )}
+            {" · "}
             {capture.bytes == null ? "—" : (capture.bytes / 1e6).toFixed(2)} MB
           </p>
           <p className="flow-footnote">
-            Elapsed time includes connection shutdown and training-split
-            validation.
+            Elapsed:{" "}
+            {capture.elapsed_seconds == null
+              ? "—"
+              : Math.round(capture.elapsed_seconds)}
+            s, including shutdown and validation.
+            {downloading &&
+              " Progress measures the time range processed, not elapsed time; gaps are not filled."}
           </p>
+          {downloading && capture.coverage_fraction != null && (
+            <p className="flow-footnote">
+              Candles received: {(capture.coverage_fraction * 100).toFixed(1)}%
+              of requested seconds
+              {capture.missing_candle_count != null &&
+                ` · ${capture.missing_candle_count} seconds without downloaded candles`}
+            </p>
+          )}
           {capture.error && <p role="status">{capture.error}</p>}
         </div>
       )}

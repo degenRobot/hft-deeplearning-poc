@@ -22,6 +22,7 @@ from market_gate.training_service import SnapshotWriter  # noqa: E402
 SOURCE_FILES = (
     "__init__.py",
     "training_lab.py",
+    "historical.py",
     "training_options.py",
     "training.py",
     "contracts.py",
@@ -125,10 +126,10 @@ def main():
     if not args.run:
         print(json.dumps(plan, indent=2))
         return
-    from market_gate.training import build_examples, build_frame_dataset, load_recording
-    from market_gate.training_lab import split_lab_examples
+    from market_gate.training import build_examples
+    from market_gate.training_lab import load_lab_dataset, split_lab_examples
 
-    frames = build_frame_dataset(load_recording(args.input))
+    frames, _ = load_lab_dataset(args.input)
     rows = build_examples(frames.values, frames.mids, 30, 5, close_ts_ms=frames.close_ts_ms)
     split_lab_examples(rows, len(frames.values), options.max_rl_steps)
     # Upload only reviewed committed module files. No source directory, .env or auto mounts.
