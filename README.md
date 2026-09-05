@@ -1,12 +1,9 @@
 # HFT Deep Learning POC
 
-A small, read-only demo of one way a learned model can sit above a fast market-making loop.
-Three deterministic experts react to book and trade events. Once per second, a tiny neural
-network changes their weights. Deterministic code still owns the synthetic quote and every
-safety check.
-
-This is an educational simulation. It sends no orders, needs no exchange credentials, and does
-not claim to reproduce production HFT or prove profitability.
+A small, read-only demo of a learned model above a fast market-making loop. Three deterministic
+experts react to book and trade events; once per second, a tiny neural network changes their
+weights. Deterministic code owns the synthetic quote and safety checks. The demo sends no orders,
+needs no exchange credentials, and makes no production-HFT or profitability claim.
 
 ## What is here
 
@@ -30,20 +27,16 @@ book + trades ──> fast experts ──> weighted mixer ──> risk kernel �
 
 ## Run the demo
 
-Install the two small applications:
-
 ```sh
 uv sync --extra dev
 cd frontend && pnpm install --frozen-lockfile && cd ..
 ```
 
-Start the backend in one terminal:
+Start the backend and dashboard in separate terminals:
 
 ```sh
 uv run uvicorn market_gate.api:app --app-dir src --reload
 ```
-
-Start the dashboard in another:
 
 ```sh
 cd frontend
@@ -75,29 +68,19 @@ writes two inspectable outputs:
 - `models/gate-binance-demo.npz`, a separate model that does not replace the live demo model.
 - `artifacts/training-demo.json`, the receipt shown in the dashboard.
 
-The committed sample and receipt let the UI work without making a fresh network call. See
-`data/README.md` for provenance. The companion `notebooks/gate_training.ipynb` remains a smaller
-synthetic walkthrough of the same model shape and Torch-free export.
+The committed sample and receipt work offline; `data/README.md` records provenance, while
+`notebooks/gate_training.ipynb` shows the same model shape and Torch-free export synthetically.
 
-The labels are deliberately simple one-second proxies for the three live experts; the live flow
-and reversion experts keep longer rolling state. The short run proves only that the data-to-model
-plumbing works. It is not a backtest or evidence of generalization, trading performance, or
-profitability.
+The labels are one-second proxies; the live flow and reversion experts keep longer rolling state.
+This proves the plumbing, not generalization, trading performance, or profitability. For optional
+cloud parity, `make modal-plan` prints a no-contact plan. After checking credits and spend, run
+`uv run --with modal==1.5.2 python scripts/train_on_modal.py --run`. No Modal run is recorded here.
 
 ## Change the inputs
 
-Defaults live in `configs/demo.toml`. The dashboard sends the same safe fields to the backend at
-runtime. Useful first comparisons are:
-
-- `gate_mode = "uniform"` to remove the learned gate.
-- `gate_mode = "static"` for a fixed `50/35/15` mix.
-- `higher_level_influence = 0` to make the higher-level gate inert.
-- `flow_window_trades = 16` to make the flow expert react to a shorter recent window.
-- `source = "binance"` to consume public `bookTicker` and `aggTrade` streams.
-
-Runtime changes are intentionally in-memory. **Reset simulation** starts a fresh run with the
-applied runtime config; restarting the backend restores the TOML defaults. Feed-generation and
-event counters in the health panel make both transitions visible.
+Defaults live in `configs/demo.toml`; the dashboard edits the same fields. Try uniform or static
+gate mode, zero higher-level influence, a shorter flow window, or Binance public data. Changes
+stay in memory: **Reset simulation** starts a fresh run, while a backend restart restores defaults.
 
 ## Verify it
 
@@ -110,15 +93,12 @@ cd frontend && pnpm format:check && pnpm test && pnpm lint && pnpm build
 
 ## Proof boundary
 
-The demo does not model queue position, partial fills, fees, exchange latency, self-impact, or
-real P&L. Python and internet WebSockets are useful here because the mechanism is easy to inspect,
-not because they meet colocated trading latency. The main design idea is the authority boundary:
-the learned model proposes bounded weights while deterministic code enforces market-data and risk
-rules.
+The demo omits queue position, partial fills, fees, exchange latency, self-impact, and real P&L.
+Python and internet WebSockets favor inspection, not colocated latency. The model proposes bounded
+weights; deterministic code enforces market-data and risk rules.
 
 Binance is the only live venue adapter in this slice. RISEx remains the next adapter because its
 snapshot-before-ack and checksum rules deserve their own tests instead of a decorative selector.
 
-The structure was informed by the slow-model / deterministic-controller separation explored in
-the Apache-2.0-licensed [VRM NN Lab](https://github.com/degenRobot/vrm-nn-lab). This repository's
-implementation was written as a smaller, trading-specific proof of concept.
+The design borrows the slow-model / deterministic-controller split from the Apache-2.0-licensed
+[VRM NN Lab](https://github.com/degenRobot/vrm-nn-lab), pared down for this trading POC.

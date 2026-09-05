@@ -64,44 +64,42 @@ export const PRESETS: Preset[] = [
   },
 ];
 
+const sources = ["replay", "binance"] as const;
+const gateModes = ["neural", "uniform", "static"] as const;
+const numericFields = [
+  "higher_level_influence",
+  "gate_interval_ms",
+  "expert_strength",
+  "base_spread_bps",
+  "max_inventory",
+  "flow_window_trades",
+] as const;
+const pick = <T extends string>(
+  value: unknown,
+  options: readonly T[],
+  fallback: T,
+) => (options.includes(value as T) ? (value as T) : fallback);
+
 export function normalizeConfig(
   input: unknown,
   fallback: AppConfig = DEFAULT_CONFIG,
 ): AppConfig {
   const raw =
     input && typeof input === "object" ? (input as Partial<AppConfig>) : {};
+  const numeric = Object.fromEntries(
+    numericFields.map((key) => [key, numberOr(raw[key], fallback[key])]),
+  );
   return {
     ...fallback,
     ...raw,
-    source:
-      raw.source === "binance"
-        ? "binance"
-        : raw.source === "replay"
-          ? "replay"
-          : fallback.source,
-    gate_mode:
-      raw.gate_mode === "uniform" ||
-      raw.gate_mode === "static" ||
-      raw.gate_mode === "neural"
-        ? raw.gate_mode
-        : fallback.gate_mode,
+    ...numeric,
+    source: pick(raw.source, sources, fallback.source),
+    gate_mode: pick(raw.gate_mode, gateModes, fallback.gate_mode),
     symbol:
       typeof raw.symbol === "string"
         ? raw.symbol.toUpperCase()
         : fallback.symbol,
-    higher_level_influence: numberOr(
-      raw.higher_level_influence,
-      fallback.higher_level_influence,
-    ),
-    gate_interval_ms: numberOr(raw.gate_interval_ms, fallback.gate_interval_ms),
-    expert_strength: numberOr(raw.expert_strength, fallback.expert_strength),
-    base_spread_bps: numberOr(raw.base_spread_bps, fallback.base_spread_bps),
-    max_inventory: numberOr(raw.max_inventory, fallback.max_inventory),
-    flow_window_trades: numberOr(
-      raw.flow_window_trades,
-      fallback.flow_window_trades,
-    ),
-  };
+  } as AppConfig;
 }
 
 const numberOr = (value: unknown, fallback: number) =>

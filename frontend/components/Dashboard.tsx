@@ -9,13 +9,11 @@ import { TrainingSection } from "./TrainingSection";
 
 export function Dashboard({
   state,
-  history,
   ready,
   nextRefresh,
   mode,
 }: {
   state: MarketGateState;
-  history: MarketGateState[];
   ready: boolean;
   nextRefresh: number;
   mode?: MarketGateState["gate"]["mode"];
@@ -29,7 +27,7 @@ export function Dashboard({
         nextRefresh={nextRefresh}
         mode={mode}
       />
-      <ExpertsSection state={state} history={history} ready={ready} />
+      <ExpertsSection state={state} ready={ready} />
       <PaperSection state={state} ready={ready} />
       <TrainingSection />
     </>

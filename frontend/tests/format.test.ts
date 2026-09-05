@@ -112,15 +112,15 @@ describe("draft presets and reset receipts", () => {
     expect(
       validateConfig({ ...DEFAULT_CONFIG, flow_window_trades: 3 }),
     ).toHaveLength(1);
-    expect(
-      validateConfig({ ...DEFAULT_CONFIG, flow_window_trades: 12.5 })[0],
-    ).toContain("whole number");
-    expect(
-      validateConfig({ ...DEFAULT_CONFIG, gate_interval_ms: 500.5 })[0],
-    ).toContain("whole number");
-    expect(
-      validateConfig({ ...DEFAULT_CONFIG, symbol: "btc-usdt" })[0],
-    ).toContain("5–20 uppercase");
+    const invalidCases = [
+      [{ ...DEFAULT_CONFIG, flow_window_trades: 12.5 }, "whole number"],
+      [{ ...DEFAULT_CONFIG, gate_interval_ms: 500.5 }, "whole number"],
+      [{ ...DEFAULT_CONFIG, symbol: "btc-usdt" }, "5–20 uppercase"],
+    ] as const;
+    invalidCases.forEach(([config, message]) => {
+      const [error] = validateConfig(config);
+      expect(error).toContain(message);
+    });
   });
 
   it("accepts only complete reset run receipts", () => {
@@ -135,25 +135,30 @@ describe("draft presets and reset receipts", () => {
 });
 
 describe("config synchronization guards", () => {
-  it("rejects stale responses after a newer request or mutation", () => {
-    expect(
-      isCurrentConfigResponse(
-        { requestGeneration: 1, mutationGeneration: 0 },
-        { requestGeneration: 2, mutationGeneration: 0 },
-      ),
-    ).toBe(false);
-    expect(
-      isCurrentConfigResponse(
-        { requestGeneration: 2, mutationGeneration: 0 },
-        { requestGeneration: 2, mutationGeneration: 1 },
-      ),
-    ).toBe(false);
-    expect(
-      isCurrentConfigResponse(
-        { requestGeneration: 2, mutationGeneration: 1 },
-        { requestGeneration: 2, mutationGeneration: 1 },
-      ),
-    ).toBe(true);
+  it("rejects stale and accepts matching generations", () => {
+    const cases = [
+      [1, 0, 2, 0, false],
+      [2, 0, 2, 1, false],
+      [2, 1, 2, 1, true],
+    ] as const;
+    cases.forEach(
+      ([
+        requestGeneration,
+        mutationGeneration,
+        currentRequest,
+        currentMutation,
+        expected,
+      ]) =>
+        expect(
+          isCurrentConfigResponse(
+            { requestGeneration, mutationGeneration },
+            {
+              requestGeneration: currentRequest,
+              mutationGeneration: currentMutation,
+            },
+          ),
+        ).toBe(expected),
+    );
   });
 
   it("merges external config based on actual draft equality", () => {

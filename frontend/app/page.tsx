@@ -43,7 +43,6 @@ export default function Home() {
       />
       <Dashboard
         state={market.state}
-        history={market.history}
         ready={market.hasSnapshot}
         nextRefresh={market.nextRefresh}
         mode={

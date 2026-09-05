@@ -46,6 +46,7 @@ def test_recording_is_normalized_and_book_updates_are_downsampled(tmp_path: Path
     assert counts == {"book": 2, "trade": 1, "total": 3}
     assert [line["kind"] for line in lines] == ["book", "trade", "book"]
     assert "data" not in lines[0]
+    assert [type(event) for event in load_recording(path)] == [BookEvent, TradeEvent, BookEvent]
     assert should_keep_book(1_000, 0, 1_000)
     assert not should_keep_book(999, 0, 1_000)
     assert event_to_record(trade(1_200, 2))["aggressor"] == "buy"
@@ -81,7 +82,8 @@ def test_utility_labels_follow_runtime_expert_order() -> None:
 
 def test_load_recording_rejects_invalid_public_event(tmp_path: Path) -> None:
     path = tmp_path / "invalid.jsonl"
-    path.write_text('{"kind":"trade","aggressor":"sideways"}\n')
+    record = event_to_record(trade(0, 0))
+    path.write_text(json.dumps(record | {"aggressor": "sideways"}))
     with pytest.raises(ValueError, match="invalid recording line 1"):
         load_recording(path)
 

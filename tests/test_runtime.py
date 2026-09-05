@@ -1,4 +1,5 @@
 import asyncio
+from functools import partial
 from pathlib import Path
 
 from starlette.requests import Request
@@ -8,13 +9,12 @@ from market_gate.config import LabConfig
 from market_gate.runtime import MarketRuntime
 
 ROOT = Path(__file__).parents[1]
+runtime_for = partial(MarketRuntime, LabConfig(), ROOT / "models" / "gate-demo.npz")
 
 
 def test_runtime_reset_and_concurrent_lifecycle_ownership() -> None:
     async def scenario() -> None:
-        runtime = MarketRuntime(
-            LabConfig(), ROOT / "models" / "gate-demo.npz", ROOT / "fixtures" / "replay.jsonl"
-        )
+        runtime = runtime_for(ROOT / "fixtures" / "replay.jsonl")
         await runtime.start()
         assert runtime.feed_generation == 1
         assert runtime.engine.feed_generation == 1
@@ -47,9 +47,7 @@ def test_post_reset_returns_current_run_and_generation() -> None:
 
 def test_failed_feed_is_terminal_then_reset_and_stop_recover_cleanly() -> None:
     async def scenario() -> None:
-        runtime = MarketRuntime(
-            LabConfig(), ROOT / "models" / "gate-demo.npz", ROOT / "fixtures" / "missing.jsonl"
-        )
+        runtime = runtime_for(ROOT / "fixtures" / "missing.jsonl")
         await runtime.start()
         await asyncio.sleep(0)
         await asyncio.sleep(0)
@@ -73,7 +71,7 @@ def test_feed_that_returns_normally_is_reported_as_failed(tmp_path: Path) -> Non
     async def scenario() -> None:
         empty_fixture = tmp_path / "empty.jsonl"
         empty_fixture.write_text("")
-        runtime = MarketRuntime(LabConfig(), ROOT / "models" / "gate-demo.npz", empty_fixture)
+        runtime = runtime_for(empty_fixture)
         await runtime.start()
         await asyncio.sleep(0)
         await asyncio.sleep(0)

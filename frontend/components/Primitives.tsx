@@ -1,17 +1,15 @@
-import type { ReactNode } from "react";
-
 import { percent } from "../lib/format";
 
 export function SectionTitle({
   index,
   eyebrow,
   title,
-  children,
+  description,
 }: {
   index: string;
   eyebrow: string;
   title: string;
-  children?: ReactNode;
+  description?: string;
 }) {
   return (
     <div className="section-title">
@@ -21,7 +19,7 @@ export function SectionTitle({
         </span>
         <h2>{title}</h2>
       </div>
-      {children && <p>{children}</p>}
+      {description && <p>{description}</p>}
     </div>
   );
 }

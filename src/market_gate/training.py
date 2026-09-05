@@ -8,7 +8,7 @@ serve the resulting receipt.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -45,33 +45,34 @@ class TrainingExample:
 
 def event_to_record(event: BookEvent | TradeEvent) -> dict[str, object]:
     """Return a stable, envelope-free JSONL record for a public market event."""
-    common: dict[str, object] = {
-        "event_ts_ms": event.event_ts_ms,
-        "kind": "book" if isinstance(event, BookEvent) else "trade",
-        "receive_ts_ms": event.receive_ts_ms,
-        "symbol": event.symbol,
-        "venue": event.venue,
+    return asdict(event) | {"kind": "book" if isinstance(event, BookEvent) else "trade"}
+
+
+def _record_to_event(raw: dict[str, object]) -> BookEvent | TradeEvent:
+    common = {
+        "venue": str(raw["venue"]),
+        "symbol": str(raw["symbol"]),
+        "event_ts_ms": int(raw["event_ts_ms"]),
+        "receive_ts_ms": int(raw["receive_ts_ms"]),
     }
-    if isinstance(event, BookEvent):
-        common.update(
-            {
-                "ask_price": event.ask_price,
-                "ask_size": event.ask_size,
-                "bid_price": event.bid_price,
-                "bid_size": event.bid_size,
-                "update_id": event.update_id,
-            }
+    kind = raw["kind"]
+    if kind == "book":
+        return BookEvent(
+            **common,
+            update_id=int(raw["update_id"]),
+            **{key: float(raw[key]) for key in ("bid_price", "bid_size", "ask_price", "ask_size")},
         )
-    else:
-        common.update(
-            {
-                "aggressor": event.aggressor,
-                "price": event.price,
-                "size": event.size,
-                "trade_id": event.trade_id,
-            }
-        )
-    return common
+    if kind != "trade":
+        raise ValueError("kind must be book or trade")
+    aggressor = str(raw["aggressor"])
+    if aggressor not in {"buy", "sell"}:
+        raise ValueError("aggressor must be buy or sell")
+    return TradeEvent(
+        **common,
+        trade_id=int(raw["trade_id"]),
+        **{key: float(raw[key]) for key in ("price", "size")},
+        aggressor=aggressor,  # type: ignore[arg-type]
+    )
 
 
 def should_keep_book(event_ts_ms: int, last_kept_ts_ms: int | None, interval_ms: int) -> bool:
@@ -92,9 +93,7 @@ def write_recording(
                 if not should_keep_book(event.event_ts_ms, last_book_ts_ms, book_interval_ms):
                     continue
                 last_book_ts_ms = event.event_ts_ms
-                counts["book"] += 1
-            else:
-                counts["trade"] += 1
+            counts["book" if isinstance(event, BookEvent) else "trade"] += 1
             handle.write(json.dumps(event_to_record(event), sort_keys=True, separators=(",", ":")))
             handle.write("\n")
             counts["total"] += 1
@@ -111,45 +110,13 @@ def load_recording(path: Path) -> list[BookEvent | TradeEvent]:
         if not line.strip():
             continue
         try:
-            raw = json.loads(line)
-            kind = raw["kind"]
-            common = {
-                "venue": str(raw["venue"]),
-                "symbol": str(raw["symbol"]),
-                "event_ts_ms": int(raw["event_ts_ms"]),
-                "receive_ts_ms": int(raw["receive_ts_ms"]),
-            }
-            if kind == "book":
-                event = BookEvent(
-                    **common,
-                    update_id=int(raw["update_id"]),
-                    bid_price=float(raw["bid_price"]),
-                    bid_size=float(raw["bid_size"]),
-                    ask_price=float(raw["ask_price"]),
-                    ask_size=float(raw["ask_size"]),
-                )
-            elif kind == "trade":
-                aggressor = str(raw["aggressor"])
-                if aggressor not in {"buy", "sell"}:
-                    raise ValueError("aggressor must be buy or sell")
-                event = TradeEvent(
-                    **common,
-                    trade_id=int(raw["trade_id"]),
-                    price=float(raw["price"]),
-                    size=float(raw["size"]),
-                    aggressor=aggressor,  # type: ignore[arg-type]
-                )
-            else:
-                raise ValueError("kind must be book or trade")
+            events.append(_record_to_event(json.loads(line)))
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
             raise ValueError(f"invalid recording line {line_number}: {error}") from error
-        events.append(event)
 
     if not events:
         raise ValueError(f"recording is empty: {path}")
-    return sorted(
-        events, key=lambda item: (item.event_ts_ms, item.receive_ts_ms, type(item).__name__)
-    )
+    return sorted(events, key=lambda e: (e.event_ts_ms, e.receive_ts_ms, type(e).__name__))
 
 
 def book_metrics(book: BookEvent) -> tuple[float, float, float, float]:
@@ -157,12 +124,10 @@ def book_metrics(book: BookEvent) -> tuple[float, float, float, float]:
     mid = (book.bid_price + book.ask_price) / 2
     spread_bps = (book.ask_price - book.bid_price) / mid * 10_000 if mid else 0.0
     size_total = book.bid_size + book.ask_size
-    imbalance = (book.bid_size - book.ask_size) / size_total if size_total else 0.0
-    microprice = (
-        (book.ask_price * book.bid_size + book.bid_price * book.ask_size) / size_total
-        if size_total
-        else mid
-    )
+    if not size_total:
+        return mid, spread_bps, 0.0, mid
+    imbalance = (book.bid_size - book.ask_size) / size_total
+    microprice = (book.ask_price * book.bid_size + book.bid_price * book.ask_size) / size_total
     return mid, spread_bps, imbalance, microprice
 
 
@@ -250,10 +215,7 @@ def chronological_split(
 
 
 def _array(examples: list[TrainingExample]) -> tuple[np.ndarray, np.ndarray]:
-    return (
-        np.stack([example.features for example in examples]),
-        np.stack([example.utilities for example in examples]),
-    )
+    return np.stack([e.features for e in examples]), np.stack([e.utilities for e in examples])
 
 
 def _save_gate_model(model: object, destination: Path) -> int:
