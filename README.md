@@ -10,10 +10,10 @@ is an educational experiment, with no exchange orders, production-HFT claim or p
 
 ## Run it locally
 
-Requires Python 3.12+, [uv](https://docs.astral.sh/uv/), Node.js and pnpm.
+Requires Python 3.12+, [uv](https://docs.astral.sh/uv/), Node.js 22.12+ and pnpm 10.9.0.
 
 ```sh
-uv sync --extra dev --extra training
+uv sync --frozen --extra dev --extra training
 cd frontend
 pnpm install --frozen-lockfile
 cd ..
@@ -30,8 +30,8 @@ cd frontend
 pnpm dev
 ```
 
-Open [localhost:3000](http://localhost:3000). The backend listens on loopback port
-8000. The terminal defaults to deterministic replay; public Binance books and trades
+Open [localhost:3000](http://localhost:3000). No API keys are needed for replay or local
+training. The backend listens on loopback port 8000. The terminal defaults to deterministic replay; public Binance books and trades
 are available from Runtime settings without exchange credentials. Apply settings to
 start a fresh run. A backend restart restores the defaults in `configs/demo.toml`.
 
@@ -42,6 +42,16 @@ start a fresh run. A backend restart restores the defaults in `configs/demo.toml
 | [Background](http://localhost:3000/background) | The idea, the architecture and what would be worth testing next. Static; works without the backend. |
 | [Live terminal](http://localhost:3000) | Follow replay or public market data through the model, three experts and synthetic quotes. Compare neural, uniform and static weights. |
 | [Training lab](http://localhost:3000/training) | Run supervised training and replay adaptation, inspect actual gradients and weight changes, or watch the optional Live RL updates. |
+
+To see learning immediately, open **Training Lab → Open Training Settings → Train locally**.
+The bundled recording is ready to use; downloading or capturing new data is optional.
+The charts fill after the first optimizer step. Compare the completed run with the
+simple baselines under **Dataset split & holdout comparison**.
+
+If the page cannot connect, check that the backend command is still running and open
+[the health endpoint](http://127.0.0.1:8000/health). For a different backend address, set
+`NEXT_PUBLIC_API_URL` in `frontend/.env.local` and restart the frontend. Browser mutations
+are allowed from localhost or 127.0.0.1 on ports 3000 and 3010.
 
 ## How the loop works
 
@@ -87,7 +97,7 @@ For a reproducible synthetic export example, run `make train RUN_DIR=artifacts/m
 Choose a new output directory for each run. `make experiment-check` verifies the bounded
 capture experiment; `make test` runs backend and frontend checks.
 
-Modal is optional. Install its extra with `uv sync --extra dev --extra training --extra cloud`.
+Modal is optional. Install its extra with `uv sync --frozen --extra dev --extra training --extra cloud`.
 Configure `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` locally through the Training Lab or
 the ignored `.env` at the main checkout root. A Modal run uploads the selected dataset
 and training code and uses your account's compute. The guide describes what runs and
@@ -100,3 +110,13 @@ test, not implemented capabilities or evidence of an edge.
 
 The slow-model / deterministic-controller split draws on
 [VRM NN Lab](https://github.com/degenRobot/vrm-nn-lab).
+
+## Contributing
+
+Run `make test` and `make experiment-check` before opening a PR. GitHub Actions runs
+these same checks on pushes and pull requests. Keep generated runs and local credentials
+out of commits; the bundled recordings, checkpoints and experiment receipts are intentional.
+
+This app is designed for a trusted local machine. Making the source public does not
+make its training and credential endpoints suitable for public hosting. See
+[security boundaries](SECURITY.md) and [third-party assets](THIRD_PARTY.md).

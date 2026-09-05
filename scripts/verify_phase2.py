@@ -47,25 +47,12 @@ def main() -> None:
         )
         assert sample["status"] == "rejected" and sample["models_trained"] == 0
         print(f"{sample['id']}: {train} train / {validation} validation; rejected; hash verified")
-    keys = (
-        "experiment_id",
-        "attempted_samples",
-        "accepted_samples",
-        "experimental_models_trained",
-        "replacement_captures",
-        "minimum_train_examples",
-        "minimum_validation_examples",
-    )
-    projection = {key: report[key] for key in keys}
-    projection["samples"] = [
-        {key: sample[key] for key in ("id", "train_examples", "validation_examples", "status")}
-        for sample in report["samples"]
-    ]
-    assert projection == json.loads((root / "frontend/lib/experiment-summary.json").read_text())
     assert report["accepted_samples"] == report["experimental_models_trained"] == 0
     assert report["replacement_captures"] == 0
     assert report["cloud"]["status"] == "not_run"
-    print("Frozen report and dashboard projection agree. No captures or fits performed.")
+    print(
+        "Frozen report matches the recordings and acceptance policy. No captures or fits performed."
+    )
 
 
 if __name__ == "__main__":

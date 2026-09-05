@@ -4,14 +4,14 @@ RUN_DIR ?= artifacts/local-example
 INPUT ?= fixtures/parity-replay-v2.jsonl
 
 setup:
-	uv sync --extra dev --extra training
+	uv sync --frozen --extra dev --extra training
 	cd frontend && pnpm install --frozen-lockfile
 
 test:
 	uv run --extra dev --extra training ruff format --check .
 	uv run --extra dev --extra training ruff check .
 	uv run --extra dev --extra training pytest
-	cd frontend && pnpm format:check && pnpm test && pnpm lint && pnpm build
+	cd frontend && pnpm format:check && pnpm test && pnpm lint && pnpm typecheck && pnpm build
 
 backend:
 	uv run uvicorn market_gate.api:app --app-dir src --reload

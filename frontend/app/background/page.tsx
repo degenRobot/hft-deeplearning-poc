@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { InferenceBudget } from "../../components/InferenceBudget";
-import { SiteNav } from "../../components/SiteNav";
+import { PageHeader } from "../../components/PageHeader";
 import "./background.css";
 
 export const metadata = {
@@ -20,22 +20,7 @@ const fastPath = [
 export default function BackgroundPage() {
   return (
     <main className="shell background-page">
-      <header className="topbar background-topbar">
-        <Link
-          className="brand brand-home"
-          href="/"
-          aria-label="Market Gate Lab home"
-        >
-          <span className="brand-mark" aria-hidden="true">
-            MG
-          </span>
-          <div>
-            <h1>Background</h1>
-            <span className="brand-caption">Market Gate Lab</span>
-          </div>
-        </Link>
-        <SiteNav current="background" />
-      </header>
+      <PageHeader title="Background" current="background" />
 
       <section className="background-section" aria-labelledby="poc-title">
         <div className="background-section-heading">
