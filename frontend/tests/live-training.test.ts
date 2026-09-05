@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   parseLiveTraining,
   trainingIsStale,
+  DEFAULT_TRAINING_OPTIONS,
   type LiveTraining,
   type TrainingStep,
 } from "../lib/liveTraining";
@@ -86,6 +87,24 @@ describe("training contract", () => {
     if (kind === "history") v.history = Array(401).fill(step);
     if (kind === "hash") v.dataset!.sha256 = "unknown";
     expect(parseLiveTraining(v)).toBeNull();
+  });
+  it("uses actual model widths with capped activation samples and accepts old receipts", () => {
+    const large = wire();
+    large.dataset!.hidden_sizes = [1024, 512];
+    large.dataset!.parameter_count = 834563;
+    expect(parseLiveTraining(large)).not.toBeNull();
+    const small = wire();
+    small.dataset!.hidden_sizes = [8, 8];
+    small.dataset!.parameter_count = 2507;
+    small.latest!.activations = {
+      hidden_1: Array(8).fill(1),
+      hidden_2: Array(8).fill(1),
+    };
+    small.history = [small.latest!];
+    expect(parseLiveTraining(small)).not.toBeNull();
+    small.latest!.activations.hidden_1.pop();
+    expect(parseLiveTraining(small)).toBeNull();
+    expect(parseLiveTraining(wire())).not.toBeNull();
   });
   it("expires running updates without expiring a completed historical run", () => {
     const v = wire();
@@ -195,6 +214,27 @@ describe("training polling lifecycle", () => {
     expect(
       vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST"),
     ).toHaveLength(1);
+  });
+  it("sends explicitly selected training options as JSON", async () => {
+    await mount();
+    const options = {
+      ...DEFAULT_TRAINING_OPTIONS,
+      backend: "modal" as const,
+      hidden_1: 256,
+      hidden_2: 128,
+      epochs: 4,
+      learning_rate: 0.002,
+    };
+    await act(async () => {
+      await latest.start(options);
+    });
+    const command = vi
+      .mocked(fetch)
+      .mock.calls.find(([, init]) => init?.method === "POST");
+    expect(command?.[1]?.headers).toEqual({
+      "Content-Type": "application/json",
+    });
+    expect(JSON.parse(command?.[1]?.body as string)).toEqual(options);
   });
   it("prevents duplicate control mutations and aborts outstanding work on unmount", async () => {
     await mount();

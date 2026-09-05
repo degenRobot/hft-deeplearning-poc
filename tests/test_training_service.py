@@ -74,6 +74,7 @@ def test_new_run_does_not_show_previous_completed_snapshot(tmp_path, monkeypatch
     writer = SnapshotWriter(service.path, "old", "local")
     writer.finish("completed")
     writer.close()
+
     (tmp_path / "data").mkdir()
     (tmp_path / "data/training-public.jsonl").write_text("public recording")
 
@@ -94,3 +95,34 @@ def test_new_run_does_not_show_previous_completed_snapshot(tmp_path, monkeypatch
     assert service.snapshot()["run_id"] == started["run_id"]
     assert service.pending is None
     writer.close()
+
+
+def test_modal_start_forwards_validated_options_without_credentials_in_arguments(
+    tmp_path, monkeypatch
+):
+    from market_gate.training_options import TrainingOptions
+
+    service = TrainingService(tmp_path)
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data/training-public.jsonl").write_text("public data")
+    commands = []
+
+    class Process:
+        def __init__(self, command, **kwargs):
+            commands.append(command)
+
+        def poll(self):
+            return None
+
+    monkeypatch.setattr(
+        "market_gate.training_service.credential_status",
+        lambda _: {"configured": True, "available": True},
+    )
+    monkeypatch.setattr("market_gate.training_service.subprocess.Popen", Process)
+    result = service.start(TrainingOptions(hidden_1=1024, hidden_2=512, epochs=2), "modal")
+    assert result["backend"] == "modal"
+    command = commands[0]
+    assert "--run" in command and "--env-file" in command
+    assert command[command.index("--hidden-1") + 1] == "1024"
+    assert command[command.index("--hidden-2") + 1] == "512"
+    assert not any("TOKEN_SECRET" in value for value in command)

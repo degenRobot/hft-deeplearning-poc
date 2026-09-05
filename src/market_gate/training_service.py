@@ -12,6 +12,9 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
+from .training_credentials import credential_status, project_env
+from .training_options import TrainingOptions
+
 
 def empty_snapshot() -> dict:
     return dict(
@@ -76,6 +79,15 @@ class TrainingService:
         self.path = root / "artifacts/training-live.json"
         self.process: subprocess.Popen | None = None
         self.pending: dict | None = None
+        self.env_path = project_env(root)
+
+    def settings(self) -> dict:
+        return dict(
+            modal=credential_status(self.env_path),
+            defaults={"backend": "local", **TrainingOptions().to_dict()},
+            limits={"hidden_min": 8, "hidden_max": 1024, "epochs_max": 50},
+            resources={"cpu": 2, "memory_gib": 2, "timeout_seconds": 600},
+        )
 
     def snapshot(self) -> dict:
         if self.pending is not None:
@@ -109,7 +121,10 @@ class TrainingService:
                     )
         return result
 
-    def start(self) -> dict:
+    def start(self, options: TrainingOptions | None = None, backend: str = "local") -> dict:
+        options = (options or TrainingOptions()).validate()
+        if not isinstance(backend, str) or backend not in {"local", "modal"}:
+            raise ValueError("Choose local or Modal training")
         if self.process is not None and self.process.poll() is None:
             raise ValueError("another training run is active")
         if self.snapshot()["status"] == "running":
@@ -117,30 +132,43 @@ class TrainingService:
         recording = self.root / "data/training-public.jsonl"
         if not recording.is_file():
             raise FileNotFoundError("Record public data to data/training-public.jsonl first")
+        if backend == "modal":
+            status = credential_status(self.env_path)
+            if not status["configured"]:
+                raise ValueError("Save Modal credentials before starting cloud training")
+            if not status["available"]:
+                raise ValueError("Install cloud support: uv sync --extra training --extra cloud")
         run_id = uuid.uuid4().hex
         output = self.root / "artifacts/training-runs" / run_id
         output.parent.mkdir(parents=True, exist_ok=True)
+        script = "train_lab_on_modal.py" if backend == "modal" else "run_training_lab.py"
+        command = [
+            sys.executable,
+            str(self.root / "scripts" / script),
+            "--input",
+            str(recording),
+            "--output",
+            str(output),
+        ]
+        for key, value in options.to_dict().items():
+            command.extend(["--" + key.replace("_", "-"), str(value)])
+        if backend == "modal":
+            command.extend(["--run", "--env-file", str(self.env_path)])
+        else:
+            command.extend(["--live-state", str(self.path), "--pace", "0.25"])
         with (output.parent / f"{run_id}.log").open("x") as log:
             self.process = subprocess.Popen(
-                [
-                    sys.executable,
-                    str(self.root / "scripts/run_training_lab.py"),
-                    "--input",
-                    str(recording),
-                    "--output",
-                    str(output),
-                    "--live-state",
-                    str(self.path),
-                    "--pace",
-                    "0.25",
-                ],
+                command,
                 cwd=self.root,
                 stdout=log,
                 stderr=log,
             )
         # The worker owns the lock and state; never overwrite a concurrent worker's snapshot.
         self.pending = empty_snapshot() | dict(
-            run_id=run_id, status="running", updated_at=datetime.now(UTC).isoformat()
+            run_id=run_id,
+            backend=backend,
+            status="running",
+            updated_at=datetime.now(UTC).isoformat(),
         )
         return self.pending.copy()
 

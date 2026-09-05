@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -20,6 +21,7 @@ from market_gate.training_service import SnapshotWriter  # noqa: E402
 SOURCE_FILES = (
     "__init__.py",
     "training_lab.py",
+    "training_options.py",
     "training.py",
     "contracts.py",
     "experts.py",
@@ -29,12 +31,18 @@ SOURCE_FILES = (
 CAPS = dict(cpu=(2, 2), memory=(2048, 2048), timeout=600, retries=0, max_containers=1)
 
 
-def remote_training(recording_bytes: bytes, expected_sha: str):
+class TrainingCancelled(Exception):
+    """Unlike KeyboardInterrupt, this is not suppressed by Modal's app context."""
+
+
+def remote_training(recording_bytes: bytes, expected_sha: str, options: dict):
     import time
 
     import modal
 
     from market_gate.training_lab import train_lab
+
+    yield {"kind": "execution", "function_call_id": modal.current_function_call_id()}
 
     if len(recording_bytes) > 100_000_000:
         raise ValueError("recording exceeds 100 MB")
@@ -45,7 +53,7 @@ def remote_training(recording_bytes: bytes, expected_sha: str):
         recording = root / "recording.jsonl"
         recording.write_bytes(recording_bytes)
         output = root / "run"
-        for event in train_lab(recording, output, epochs=12, max_rl_steps=120, seed=7):
+        for event in train_lab(recording, output, **options):
             yield event
             if event["kind"] == "step":
                 time.sleep(0.15)
@@ -53,8 +61,8 @@ def remote_training(recording_bytes: bytes, expected_sha: str):
         files = {}
         for path in output.iterdir():
             if path.is_file() and path.suffix in {".npz", ".json"}:
-                if path.stat().st_size > 2_000_000:
-                    raise ValueError("artifact exceeds 2 MB")
+                if path.stat().st_size > 16_000_000:
+                    raise ValueError("artifact exceeds 16 MB")
                 files[path.name] = path.read_bytes()
         yield {
             "kind": "artifacts",
@@ -65,11 +73,9 @@ def remote_training(recording_bytes: bytes, expected_sha: str):
 
 def load_credentials(path: Path):
     """Read only the two named credentials locally; never evaluate a shell dotenv file."""
-    if path.is_file():
-        for line in path.read_text().splitlines():
-            key, separator, value = line.partition("=")
-            if separator and key.strip() in {"MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET"}:
-                os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
+    from market_gate.training_credentials import read_credentials
+
+    os.environ.update(read_credentials(path))
     if not all(os.environ.get(key) for key in ("MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET")):
         raise ValueError("MODAL_TOKEN_ID and MODAL_TOKEN_SECRET are required")
 
@@ -80,7 +86,23 @@ def main():
     parser.add_argument("--input", type=Path, default=ROOT / "data/training-public.jsonl")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--env-file", type=Path, default=ROOT / ".env")
+    parser.add_argument("--hidden-1", type=int, default=64)
+    parser.add_argument("--hidden-2", type=int, default=32)
+    parser.add_argument("--epochs", type=int, default=12)
+    parser.add_argument("--learning-rate", type=float, default=0.001)
+    parser.add_argument("--max-rl-steps", type=int, default=120)
+    parser.add_argument("--seed", type=int, default=7)
     args = parser.parse_args()
+    from market_gate.training_options import TrainingOptions
+
+    options = TrainingOptions(
+        hidden_1=args.hidden_1,
+        hidden_2=args.hidden_2,
+        epochs=args.epochs,
+        learning_rate=args.learning_rate,
+        max_rl_steps=args.max_rl_steps,
+        seed=args.seed,
+    ).validate()
     if not args.input.is_file() or args.input.stat().st_size > 100_000_000:
         parser.error("input must be a public recording of at most 100 MB")
     if args.output.exists():
@@ -96,9 +118,7 @@ def main():
         input_bytes=len(data),
         sources=source_hashes,
         resources=CAPS,
-        epochs=12,
-        max_rl_steps=120,
-        seed=7,
+        **options.to_dict(),
         note="Execution timeout excludes image build/startup; limits are not a billing cap.",
     )
     if not args.run:
@@ -109,7 +129,7 @@ def main():
 
     frames = build_frame_dataset(load_recording(args.input))
     rows = build_examples(frames.values, frames.mids, 30, 5, close_ts_ms=frames.close_ts_ms)
-    split_lab_examples(rows, len(frames.values), 120)
+    split_lab_examples(rows, len(frames.values), options.max_rl_steps)
     # Upload only reviewed committed module files. No source directory, .env or auto mounts.
     for name in SOURCE_FILES:
         relative = f"src/market_gate/{name}"
@@ -130,6 +150,13 @@ def main():
 
     heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
     heartbeat_thread.start()
+    call_id = None
+
+    def stop_signal(*_):
+        raise TrainingCancelled
+
+    signal.signal(signal.SIGTERM, stop_signal)
+    signal.signal(signal.SIGINT, stop_signal)
     try:
         with tempfile.TemporaryDirectory(prefix="training-source-") as temporary:
             staging = Path(temporary)
@@ -153,13 +180,17 @@ def main():
             with modal.enable_output(), app.run():
                 completion = None
                 artifact_count = 0
-                for event in remote.remote_gen(data, input_sha):
-                    if event["kind"] == "artifacts":
+                for event in remote.remote_gen(data, input_sha, options.to_dict()):
+                    if event["kind"] == "execution":
+                        call_id = event["function_call_id"]
+                        writer.state["execution"] = {"function_call_id": call_id}
+                        writer.publish()
+                    elif event["kind"] == "artifacts":
                         for name, content in event["files"].items():
                             if (
                                 Path(name).name != name
                                 or Path(name).suffix not in {".npz", ".json"}
-                                or len(content) > 2_000_000
+                                or len(content) > 16_000_000
                             ):
                                 raise ValueError("invalid returned artifact")
                             with (args.output / name).open("xb") as handle:
@@ -177,7 +208,10 @@ def main():
                     raise ValueError("returned receipt does not match the public recording")
                 artifact_hashes = {}
                 for phase in ("supervised", "adapted"):
-                    path = args.output / f"gate-{phase}.npz"
+                    filename = receipt["artifacts"][phase]["path"]
+                    if Path(filename).name != filename:
+                        raise ValueError("invalid artifact receipt path")
+                    path = args.output / filename
                     digest = hashlib.sha256(path.read_bytes()).hexdigest()
                     if digest != receipt["artifacts"][phase]["sha256"]:
                         raise ValueError("returned model does not match its receipt")
@@ -197,6 +231,10 @@ def main():
                 }
             )
         )
+    except TrainingCancelled:
+        if call_id:
+            modal.FunctionCall.from_id(call_id).cancel(terminate_containers=True)
+        writer.finish("stopped")
     except BaseException:
         writer.finish("failed", "Modal run failed; see the local command log")
         raise

@@ -22,6 +22,7 @@ export interface LiveTraining {
   run_id: string | null;
   status: "idle" | "running" | "completed" | "failed" | "stopped";
   backend: "local" | "modal";
+  can_stop?: boolean;
   updated_at: string | null;
   dataset: null | {
     symbol: string;
@@ -31,6 +32,8 @@ export interface LiveTraining {
     rl_examples: number;
     holdout_examples: number;
     sha256: string;
+    hidden_sizes?: [number, number];
+    parameter_count?: number;
   };
   latest: TrainingStep | null;
   history: TrainingStep[];
@@ -56,7 +59,10 @@ const probabilities = (v: unknown) =>
   vector(v, 3) &&
   (v as number[]).every((x) => x >= 0 && x <= 1) &&
   Math.abs((v as number[]).reduce((a, b) => a + b, 0) - 1) < 0.001;
-function validStep(v: unknown): v is TrainingStep {
+function validStep(
+  v: unknown,
+  sizes: [number, number] = [64, 32],
+): v is TrainingStep {
   if (
     !object(v) ||
     !count(v.step) ||
@@ -85,8 +91,8 @@ function validStep(v: unknown): v is TrainingStep {
     return false;
   if (
     !object(v.activations) ||
-    !vector(v.activations.hidden_1, 64) ||
-    !vector(v.activations.hidden_2, 32) ||
+    !vector(v.activations.hidden_1, Math.min(sizes[0], 64)) ||
+    !vector(v.activations.hidden_2, Math.min(sizes[1], 32)) ||
     !(v.activations.hidden_1 as number[]).every((x) => x >= 0) ||
     !(v.activations.hidden_2 as number[]).every((x) => x >= 0)
   )
@@ -127,6 +133,8 @@ export function parseLiveTraining(v: unknown): LiveTraining | null {
     )
   )
     return null;
+  if (v.can_stop !== undefined && typeof v.can_stop !== "boolean") return null;
+  let sizes: [number, number] = [64, 32];
   if (v.dataset !== null) {
     if (
       !object(v.dataset) ||
@@ -143,11 +151,28 @@ export function parseLiveTraining(v: unknown): LiveTraining | null {
     )
       return null;
   }
+  if (object(v.dataset)) {
+    if (v.dataset.hidden_sizes !== undefined) {
+      if (
+        !Array.isArray(v.dataset.hidden_sizes) ||
+        v.dataset.hidden_sizes.length !== 2 ||
+        !v.dataset.hidden_sizes.every((x) => count(x) && x >= 8 && x <= 1024)
+      )
+        return null;
+      sizes = v.dataset.hidden_sizes as [number, number];
+    }
+    if (
+      v.dataset.parameter_count !== undefined &&
+      (!count(v.dataset.parameter_count) ||
+        v.dataset.parameter_count !== trainingParameterCount(...sizes))
+    )
+      return null;
+  }
   if (
-    !(v.latest === null || validStep(v.latest)) ||
+    !(v.latest === null || validStep(v.latest, sizes)) ||
     !Array.isArray(v.history) ||
     v.history.length > 400 ||
-    !v.history.every(validStep)
+    !v.history.every((step) => validStep(step, sizes))
   )
     return null;
   if (
@@ -171,5 +196,99 @@ export function trainingIsStale(value: LiveTraining, now: number) {
     value.status === "running" &&
     value.updated_at !== null &&
     now - Date.parse(value.updated_at) > TRAINING_STALE_MS
+  );
+}
+
+export interface TrainingOptions {
+  backend: "local" | "modal";
+  hidden_1: number;
+  hidden_2: number;
+  epochs: number;
+  learning_rate: number;
+}
+export const DEFAULT_TRAINING_OPTIONS: TrainingOptions = {
+  backend: "local",
+  hidden_1: 64,
+  hidden_2: 32,
+  epochs: 12,
+  learning_rate: 0.001,
+};
+export interface TrainingSettings {
+  modal: { configured: boolean; available: boolean };
+  defaults: TrainingOptions;
+  limits: { hidden_min: number; hidden_max: number; epochs_max: number };
+  resources: { cpu: number; memory_gib: number; timeout_seconds: number };
+}
+export const trainingParameterCount = (first: number, second: number) =>
+  301 * first + (first + 1) * second + (second + 1) * 3;
+export function validTrainingOptions(
+  v: TrainingOptions,
+  limits = { hidden_min: 8, hidden_max: 1024, epochs_max: 50 },
+) {
+  return (
+    ["local", "modal"].includes(v.backend) &&
+    [v.hidden_1, v.hidden_2].every(
+      (x) =>
+        Number.isInteger(x) && x >= limits.hidden_min && x <= limits.hidden_max,
+    ) &&
+    Number.isInteger(v.epochs) &&
+    v.epochs >= 1 &&
+    v.epochs <= limits.epochs_max &&
+    Number.isFinite(v.learning_rate) &&
+    v.learning_rate >= 0.00001 &&
+    v.learning_rate <= 0.01
+  );
+}
+export function parseTrainingSettings(v: unknown): TrainingSettings | null {
+  if (
+    !object(v) ||
+    !object(v.modal) ||
+    typeof v.modal.configured !== "boolean" ||
+    typeof v.modal.available !== "boolean" ||
+    !object(v.defaults) ||
+    !object(v.limits) ||
+    !object(v.resources)
+  )
+    return null;
+  const limits = v.limits;
+  if (
+    ![limits.hidden_min, limits.hidden_max, limits.epochs_max].every(count) ||
+    (limits.hidden_min as number) < 8 ||
+    (limits.hidden_max as number) > 1024 ||
+    (limits.hidden_min as number) > (limits.hidden_max as number) ||
+    (limits.epochs_max as number) < 1 ||
+    (limits.epochs_max as number) > 50
+  )
+    return null;
+  if (
+    !validTrainingOptions(
+      v.defaults as unknown as TrainingOptions,
+      limits as unknown as TrainingSettings["limits"],
+    ) ||
+    ![
+      v.resources.cpu,
+      v.resources.memory_gib,
+      v.resources.timeout_seconds,
+    ].every((x) => finite(x) && x > 0)
+  )
+    return null;
+  return {
+    modal: { configured: v.modal.configured, available: v.modal.available },
+    defaults: {
+      backend: v.defaults.backend as TrainingOptions["backend"],
+      hidden_1: v.defaults.hidden_1 as number,
+      hidden_2: v.defaults.hidden_2 as number,
+      epochs: v.defaults.epochs as number,
+      learning_rate: v.defaults.learning_rate as number,
+    },
+    limits: limits as unknown as TrainingSettings["limits"],
+    resources: v.resources as unknown as TrainingSettings["resources"],
+  };
+}
+export function trainingCanStop(data: LiveTraining | null) {
+  return (
+    data?.status === "running" &&
+    (data.can_stop === true ||
+      (data.backend === "local" && data.can_stop === undefined))
   );
 }

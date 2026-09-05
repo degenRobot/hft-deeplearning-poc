@@ -5,6 +5,8 @@ import {
   parseLiveTraining,
   trainingIsStale,
   type LiveTraining,
+  type TrainingOptions,
+  DEFAULT_TRAINING_OPTIONS,
 } from "../lib/liveTraining";
 const API = (process.env.NEXT_PUBLIC_API_URL || API_DEFAULT).replace(/\/$/, "");
 export function useLiveTraining() {
@@ -12,16 +14,20 @@ export function useLiveTraining() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
-  const command = useRef<((action: "start" | "stop") => Promise<void>) | null>(
-    null,
-  );
+  const command = useRef<
+    | ((action: "start" | "stop", options?: TrainingOptions) => Promise<void>)
+    | null
+  >(null);
   useEffect(() => {
     let disposed = false;
     let epoch = 0;
     let busy = false;
     let controller: AbortController | null = null;
     let timer: ReturnType<typeof setTimeout>;
-    const request = async (action?: "start" | "stop") => {
+    const request = async (
+      action?: "start" | "stop",
+      options?: TrainingOptions,
+    ) => {
       const version = ++epoch;
       controller?.abort();
       const current = new AbortController();
@@ -38,6 +44,10 @@ export function useLiveTraining() {
         if (action) {
           const result = await fetch(`${API}/training/live/${action}`, {
             method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(
+              action === "start" ? (options ?? DEFAULT_TRAINING_OPTIONS) : {},
+            ),
             signal: current.signal,
           });
           if (!result.ok)
@@ -79,14 +89,14 @@ export function useLiveTraining() {
         }
       }
     };
-    command.current = async (action) => {
+    command.current = async (action, options) => {
       if (disposed || busy) return;
       busy = true;
       clearTimeout(timer);
       setPending(true);
       setData(null);
       setError("");
-      await request(action);
+      await request(action, options);
     };
     void request();
     return () => {
@@ -97,7 +107,10 @@ export function useLiveTraining() {
       command.current = null;
     };
   }, []);
-  const start = useCallback(() => command.current?.("start"), []);
+  const start = useCallback(
+    (options?: TrainingOptions) => command.current?.("start", options),
+    [],
+  );
   const stop = useCallback(() => command.current?.("stop"), []);
   return { data, error, loading, pending, start, stop };
 }

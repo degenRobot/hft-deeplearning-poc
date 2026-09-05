@@ -27,12 +27,11 @@ from .training import (
     file_sha256,
     load_recording,
 )
+from .training_options import TrainingOptions
 
 LOOKBACK = 30
 HORIZON = 5
 HISTORY_EMBARGO = 30
-MAX_EPOCHS = 50
-MAX_RL_STEPS = 300
 MAX_RECORDING_BYTES = 100_000_000
 MAX_FRAMES = 20_000
 
@@ -63,11 +62,15 @@ def split_lab_examples(examples: list[TrainingExample], frame_count: int, max_rl
     return supervised, rl, holdout
 
 
-def _make_model():
+def _make_model(hidden_1: int = 64, hidden_2: int = 32):
     from torch import nn
 
     return nn.Sequential(
-        nn.Linear(300, 64), nn.ReLU(), nn.Linear(64, 32), nn.ReLU(), nn.Linear(32, 3)
+        nn.Linear(300, hidden_1),
+        nn.ReLU(),
+        nn.Linear(hidden_1, hidden_2),
+        nn.ReLU(),
+        nn.Linear(hidden_2, 3),
     )
 
 
@@ -92,7 +95,26 @@ def _export(model, mean, scale, destination: Path):
         mean, scale = mean.double(), scale.double()
         exported[0].weight.copy_(weight / scale)
         exported[0].bias.copy_(model[0].bias.double() - (weight * (mean / scale)).sum(dim=1))
-    _save_gate_model(exported, destination)
+    widths = [exported[0].out_features, exported[2].out_features]
+    if widths == [64, 32]:
+        _save_gate_model(exported, destination)
+    else:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        # Teaching architectures are explicitly incompatible with the fixed live gate.
+        with destination.open("xb") as handle:
+            np.savez(
+                handle,
+                schema_version=np.array("training-mlp-v1"),
+                layer_sizes=np.array([300, *widths, 3]),
+                **{
+                    key: value.detach().cpu().numpy()
+                    for number, index in enumerate((0, 2, 4), start=1)
+                    for key, value in (
+                        (f"w{number}", exported[index].weight.T),
+                        (f"b{number}", exported[index].bias),
+                    )
+                },
+            )
 
 
 def _evaluate(model, features, utilities):
@@ -146,26 +168,34 @@ def train_lab(
     epochs: int = 12,
     max_rl_steps: int = 120,
     seed: int = 7,
+    hidden_1: int = 64,
+    hidden_2: int = 32,
+    learning_rate: float = 0.001,
 ):
     """Yield dataset, genuine optimizer steps, then a frozen-holdout result.
 
     Replay policy updates are contextual-bandit REINFORCE with a running reward
     baseline, not exchange execution or a full market-making RL simulator.
     """
+    options = TrainingOptions(
+        hidden_1=hidden_1,
+        hidden_2=hidden_2,
+        epochs=epochs,
+        learning_rate=learning_rate,
+        max_rl_steps=max_rl_steps,
+        seed=seed,
+    ).validate()
     import torch
 
-    if type(epochs) is not int or not 1 <= epochs <= MAX_EPOCHS:
-        raise ValueError(f"epochs must be an integer in 1..{MAX_EPOCHS}")
-    if type(max_rl_steps) is not int or not 15 <= max_rl_steps <= MAX_RL_STEPS:
-        raise ValueError(f"max_rl_steps must be an integer in 15..{MAX_RL_STEPS}")
-    if type(seed) is not int or not 0 <= seed <= 2**31 - 1:
-        raise ValueError("seed must be an integer in 0..2147483647")
     recording_path, output_dir = Path(recording_path), Path(output_dir)
     if not recording_path.is_file() or recording_path.stat().st_size > MAX_RECORDING_BYTES:
         raise ValueError("recording must exist and be at most 100 MB")
+    runtime_compatible = [options.hidden_1, options.hidden_2] == [64, 32]
+    artifact_prefix = "gate" if runtime_compatible else "training-mlp"
+    artifact_schema = "gate-npz-v1" if runtime_compatible else "training-mlp-v1"
     paths = {
-        "supervised": output_dir / "gate-supervised.npz",
-        "adapted": output_dir / "gate-adapted.npz",
+        "supervised": output_dir / f"{artifact_prefix}-supervised.npz",
+        "adapted": output_dir / f"{artifact_prefix}-adapted.npz",
         "receipt": output_dir / "training-lab.json",
     }
     if any(path.exists() or path.is_symlink() for path in paths.values()):
@@ -194,6 +224,12 @@ def train_lab(
     validation_inputs = (torch.from_numpy(np.stack([e.features for e in holdout])) - mean) / scale
     validation_utilities = torch.from_numpy(np.stack([e.utilities for e in holdout]))
     dataset_info = {
+        "hidden_sizes": [options.hidden_1, options.hidden_2],
+        "activation_sample_sizes": [min(options.hidden_1, 64), min(options.hidden_2, 32)],
+        "parameter_count": options.parameter_count,
+        "epochs": epochs,
+        "learning_rate": learning_rate,
+        "runtime_compatible": runtime_compatible,
         "symbol": events[0].symbol,
         "venue": events[0].venue,
         "event_count": len(events),
@@ -218,8 +254,8 @@ def train_lab(
         "source_mode": "recorded market replay",
     }
     yield _event({"kind": "dataset", "dataset": dataset_info})
-    model = _make_model()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    model = _make_model(options.hidden_1, options.hidden_2)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     step_number = 0
     for epoch in range(epochs):
         logits, outputs, hidden_1, hidden_2 = _forward(model, inputs)
@@ -228,8 +264,8 @@ def train_lab(
         example = supervised[sample]
         before = outputs[sample].detach().tolist()
         activations = {
-            "hidden_1": hidden_1[sample].detach().tolist(),
-            "hidden_2": hidden_2[sample].detach().tolist(),
+            "hidden_1": hidden_1[sample, :64].detach().tolist(),
+            "hidden_2": hidden_2[sample, :32].detach().tolist(),
         }
         layers = _update(model, optimizer, loss)
         with torch.no_grad():
@@ -260,7 +296,7 @@ def train_lab(
             }
         )
     supervised_model = copy.deepcopy(model)
-    optimizer = torch.optim.Adam(model.parameters(), lr=2e-4)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate * 0.2)
     baseline = 0.0
     for index, example in enumerate(rl):
         features = (torch.from_numpy(example.features) - mean) / scale
@@ -274,8 +310,8 @@ def train_lab(
         loss = -distribution.log_prob(action) * advantage
         before = outputs.detach().tolist()
         activations = {
-            "hidden_1": hidden_1.detach().tolist(),
-            "hidden_2": hidden_2.detach().tolist(),
+            "hidden_1": hidden_1[:64].detach().tolist(),
+            "hidden_2": hidden_2[:32].detach().tolist(),
         }
         layers = _update(model, optimizer, loss)
         with torch.no_grad():
@@ -320,7 +356,12 @@ def train_lab(
     _export(supervised_model, mean, scale, paths["supervised"])
     _export(model, mean, scale, paths["adapted"])
     artifacts = {
-        name: {"path": str(path), "sha256": file_sha256(path)}
+        name: {
+            "path": str(path),
+            "sha256": file_sha256(path),
+            "schema": artifact_schema,
+            "runtime_compatible": runtime_compatible,
+        }
         for name, path in paths.items()
         if name != "receipt"
     }
@@ -328,12 +369,17 @@ def train_lab(
         "schema_version": 1,
         "generated_at": datetime.now(UTC).isoformat(),
         "dataset": dataset_info,
+        "architecture": {
+            "layer_sizes": [300, options.hidden_1, options.hidden_2, 3],
+            "activation": "ReLU",
+            "parameter_count": options.parameter_count,
+            "artifact_schema": artifact_schema,
+            "runtime_compatible": runtime_compatible,
+        },
         "config": {
-            "epochs": epochs,
-            "max_rl_steps": max_rl_steps,
-            "seed": seed,
-            "supervised_learning_rate": 1e-3,
-            "rl_learning_rate": 2e-4,
+            **options.to_dict(),
+            "supervised_learning_rate": learning_rate,
+            "rl_learning_rate": learning_rate * 0.2,
             "reward_scale_supervised_only": reward_scale,
             "torch_threads": 1,
             "deterministic_algorithms": True,
@@ -351,6 +397,7 @@ def train_lab(
                 name: file_sha256(Path(__file__).parent / name)
                 for name in (
                     "training_lab.py",
+                    "training_options.py",
                     "training.py",
                     "features.py",
                     "experts.py",

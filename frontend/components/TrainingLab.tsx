@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { TrainingControls } from "./TrainingControls";
 import { useLiveTraining } from "../hooks/useLiveTraining";
 import type { LiveTraining, TrainingStep } from "../lib/liveTraining";
 import { FEATURE_ROWS, FEATURE_HELP } from "../lib/visual";
@@ -67,13 +68,23 @@ function InputWindow({ step }: { step: TrainingStep | null }) {
     </article>
   );
 }
-function TrainingNetwork({ step }: { step: TrainingStep | null }) {
+function TrainingNetwork({
+  step,
+  dataset,
+}: {
+  step: TrainingStep | null;
+  dataset: LiveTraining["dataset"];
+}) {
+  const sizes = dataset?.hidden_sizes ?? [64, 32];
   return (
     <article className="flow-card">
       <span className="flow-kicker">02 / FORWARD PASS</span>
       <h2>Inside the neural gate</h2>
       <p className="input-explanation">
-        300 inputs → 64 ReLU → 32 ReLU → 3 expert probabilities.
+        300 inputs → {sizes[0]} ReLU → {sizes[1]} ReLU → 3 expert probabilities.
+        {dataset?.parameter_count
+          ? ` ${n(dataset.parameter_count)} parameters in this run.`
+          : ""}
       </p>
       {step ? (
         <>
@@ -81,7 +92,10 @@ function TrainingNetwork({ step }: { step: TrainingStep | null }) {
             {(["hidden_1", "hidden_2"] as const).map((layer, index) => (
               <div key={layer}>
                 <span>
-                  {index === 0 ? "64" : "32"} neurons · hidden {index + 1}
+                  {step.activations[layer].length < sizes[index]
+                    ? `First ${step.activations[layer].length} of ${sizes[index]}`
+                    : `${sizes[index]} neurons`}{" "}
+                  · hidden {index + 1}
                 </span>
                 <div className={`neuron-grid layer-${index}`}>
                   {step.activations[layer].map((value, neuron) => (
@@ -356,31 +370,21 @@ export function TrainingLab() {
       <div className="training-intro">
         <div>
           <span className="flow-kicker">EXPERIMENTAL / LEARNING IN VIEW</span>
-          <h2>A small model, trained in front of you.</h2>
+          <h2>Your model, trained in front of you.</h2>
           <p>
             Supervised warmup learns which proxy expert fits the next move. Then
             REINFORCE updates the gate one example at a time, using delayed
             rewards from recorded public market events.
           </p>
         </div>
-        <div className="training-controls">
-          <button
-            className="button primary"
-            disabled={loading || pending || !data || running}
-            onClick={() => void start()}
-          >
-            {pending ? "Updating run…" : "Start local training"}
-          </button>
-          <button
-            className="button ghost"
-            disabled={pending || !running || data?.backend !== "local"}
-            onClick={() => void stop()}
-          >
-            Stop run
-          </button>
-          <span>Bounded local run · no cloud launch</span>
-        </div>
       </div>
+      <TrainingControls
+        data={data}
+        loading={loading}
+        pending={pending}
+        start={start}
+        stop={stop}
+      />
       <div
         className={`training-statusbar ${error ? "training-error" : ""}`}
         role="status"
@@ -423,7 +427,7 @@ export function TrainingLab() {
       </div>
       <div className="training-forward">
         <InputWindow step={step} />
-        <TrainingNetwork step={step} />
+        <TrainingNetwork step={step} dataset={data?.dataset ?? null} />
         <Outputs step={step} />
       </div>
       <div className="training-secondary">

@@ -13,6 +13,8 @@ from starlette.websockets import WebSocketDisconnect
 
 from .config import load_config
 from .runtime import MarketRuntime
+from .training_credentials import save_credentials
+from .training_options import TrainingOptions
 from .training_service import TrainingService
 
 ALLOWED_MUTATION_ORIGINS = {
@@ -26,6 +28,26 @@ def require_allowed_mutation_origin(request: Request) -> None:
     origin = request.headers.get("origin")
     if origin is not None and origin not in ALLOWED_MUTATION_ORIGINS:
         raise HTTPException(status_code=403, detail="mutation origin is not allowed")
+
+
+async def training_json(request: Request, *, allow_empty: bool = False) -> dict:
+    """Small JSON requests with generic errors that never echo secret input."""
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > 4096:
+            raise HTTPException(status_code=413, detail="Training request is too large")
+    if not body and allow_empty:
+        return {}
+    if request.headers.get("content-type", "").split(";")[0] != "application/json":
+        raise HTTPException(status_code=415, detail="Send application/json")
+    try:
+        value = json.loads(body)
+        if not isinstance(value, dict):
+            raise ValueError
+        return value
+    except (ValueError, UnicodeDecodeError):
+        raise HTTPException(status_code=422, detail="Invalid training request") from None
 
 
 def load_training_receipt(path: Path = TRAINING_RECEIPT_PATH) -> dict[str, object]:
@@ -115,13 +137,42 @@ def create_app(config_path: str | Path = "configs/demo.toml") -> FastAPI:
 
     @app.get("/training/live")
     async def live_training() -> dict:
-        return training_service.snapshot()
+        return training_service.snapshot() | {
+            "can_stop": training_service.process is not None
+            and training_service.process.poll() is None
+        }
+
+    @app.get("/training/settings")
+    async def training_settings() -> dict:
+        return training_service.settings()
+
+    @app.post("/training/credentials")
+    async def training_credentials(request: Request) -> dict:
+        require_allowed_mutation_origin(request)
+        payload = await training_json(request)
+        try:
+            status = save_credentials(training_service.env_path, payload)
+            return {"modal": status}
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from None
+        except OSError:
+            raise HTTPException(status_code=500, detail="Could not save the project .env") from None
 
     @app.post("/training/live/start")
     async def start_training(request: Request) -> dict:
         require_allowed_mutation_origin(request)
+        payload = await training_json(request, allow_empty=True)
+        backend = payload.pop("backend", "local")
         try:
-            return training_service.start()
+            if not isinstance(backend, str) or backend not in {"local", "modal"}:
+                raise ValueError
+            options = TrainingOptions(**payload).validate()
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=422, detail="Invalid model or training settings"
+            ) from None
+        try:
+            return training_service.start(options, backend)
         except FileNotFoundError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         except ValueError as error:

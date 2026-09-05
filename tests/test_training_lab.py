@@ -189,9 +189,89 @@ def test_trained_export_matches_with_constant_and_low_variance_columns(tmp_path,
         {"max_rl_steps": 14},
         {"max_rl_steps": 301},
         {"seed": -1},
+        {"hidden_1": 7},
+        {"hidden_2": 1025},
+        {"hidden_1": True},
+        {"hidden_2": 32.0},
+        {"learning_rate": float("nan")},
+        {"learning_rate": float("inf")},
+        {"learning_rate": True},
+        {"learning_rate": 0.011},
     ],
 )
 def test_hard_limits_reject_before_reading_or_writing(tmp_path, kwargs):
     with pytest.raises(ValueError):
         list(train_lab(tmp_path / "absent", tmp_path / "out", **kwargs))
     assert not (tmp_path / "out").exists()
+
+
+@pytest.mark.parametrize("widths", [(8, 16), (128, 64)])
+def test_custom_architecture_trains_and_exports_separate_artifacts(tmp_path, widths):
+    from market_gate.training_options import TrainingOptions
+
+    options = TrainingOptions(hidden_1=widths[0], hidden_2=widths[1], learning_rate=0.002)
+    model = _make_model(*widths)
+    assert sum(p.numel() for p in model.parameters()) == options.parameter_count
+    source = recording(tmp_path / "data.jsonl")
+    events = list(
+        train_lab(
+            source,
+            tmp_path / "run",
+            hidden_1=widths[0],
+            hidden_2=widths[1],
+            learning_rate=options.learning_rate,
+            epochs=2,
+            max_rl_steps=15,
+        )
+    )
+    dataset, completed = events[0]["dataset"], events[-1]
+    assert dataset["hidden_sizes"] == list(widths)
+    assert dataset["activation_sample_sizes"] == [min(widths[0], 64), min(widths[1], 32)]
+    assert dataset["parameter_count"] == completed["parameter_count"] == options.parameter_count
+    assert dataset["epochs"] == 2
+    assert dataset["learning_rate"] == options.learning_rate
+    assert completed["config"]["rl_learning_rate"] == options.learning_rate * 0.2
+    assert completed["architecture"]["layer_sizes"] == [300, *widths, 3]
+    for event in events:
+        if event["kind"] == "step":
+            assert [len(v) for v in event["step"]["activations"].values()] == dataset[
+                "activation_sample_sizes"
+            ]
+    assert any(
+        layer["gradient_norm"] > 0 and layer["weight_delta_norm"] > 0
+        for event in events
+        if event["kind"] == "step"
+        for layer in event["step"]["layers"]
+    )
+    for artifact in completed["artifacts"].values():
+        assert artifact["schema"] == "training-mlp-v1"
+        assert artifact["runtime_compatible"] is False
+        with np.load(artifact["path"]) as exported:
+            assert exported["schema_version"].item() == "training-mlp-v1"
+            assert exported["layer_sizes"].tolist() == [300, *widths, 3]
+            assert exported["w1"].shape == (300, widths[0])
+            assert exported["w2"].shape == widths
+            assert exported["w3"].shape == (widths[1], 3)
+            for name in ("w1", "w2", "w3", "b1", "b2", "b3"):
+                assert exported[name].dtype == np.float64
+                assert np.isfinite(exported[name]).all()
+        with pytest.raises(ValueError, match="unsupported gate artifact"):
+            NumpyMLPGate(artifact["path"])
+
+
+def test_custom_export_preserves_raw_input_inference(tmp_path):
+    torch.manual_seed(8)
+    model = _make_model(128, 64)
+    mean = torch.linspace(-0.2, 0.3, 300)
+    scale = torch.linspace(0.01, 2, 300)
+    raw = torch.linspace(-0.3, 0.5, 300)
+    expected = torch.softmax(model((raw - mean) / scale), dim=-1).detach().numpy()
+    path = tmp_path / "teaching.npz"
+    _export(model, mean, scale, path)
+    with np.load(path) as exported:
+        hidden_1 = np.maximum(raw.numpy() @ exported["w1"] + exported["b1"], 0)
+        hidden_2 = np.maximum(hidden_1 @ exported["w2"] + exported["b2"], 0)
+        logits = hidden_2 @ exported["w3"] + exported["b3"]
+        probabilities = np.exp(logits - logits.max())
+        probabilities /= probabilities.sum()
+    np.testing.assert_allclose(probabilities, expected, rtol=2e-5, atol=2e-6)
