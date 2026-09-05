@@ -15,6 +15,7 @@ packages = ["src/market_gate"]
 
 [project.optional-dependencies]
 training = ["torch>=2.4"]
+cloud = ["modal==1.5.2"]
 dev = ["pytest>=8.0", "ruff>=0.6"]
 
 [tool.ruff]

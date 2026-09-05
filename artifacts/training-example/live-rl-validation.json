@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "source": "binance_public_websocket",
+  "symbol": "BTCUSDT",
+  "run_id": "fd7a4f7ed5f0",
+  "verified_steps": 13,
+  "base_head_sha256": "b6116cd63dea8986d91b677f33abfe7394b58645b9ea69a33f41a81b8596f6b5",
+  "adapted_head_sha256": "24adb0e8cf3da480b477ef6e919c21aa32d17d11cd141952cdac70e55d519ee5",
+  "independent_head_reconstruction": "byte_identical",
+  "activations_and_before_after_probabilities": "exact_for_every_step",
+  "hidden_layers": "unchanged",
+  "delayed_outcomes": "all_at_least_5_seconds_after_selection",
+  "last_step_duration_ms": 0.20891701569780707,
+  "events_processed": 12228,
+  "book_age_ms": 253,
+  "reward": "clipped_directional_mid_price_proxy_not_pnl",
+  "execution": "synthetic_quotes_only",
+  "verification_command": "uv run python scripts/verify_live_learning.py",
+  "paused_at_verification": false,
+  "earlier_verification": {
+    "run_id": "e8de7c69645d",
+    "steps": 37,
+    "head_reconstruction": "byte_identical",
+    "note": "Before final event-time stale-book guard alignment; same optimizer."
+  },
+  "browser_validation": {
+    "mobile_width": 390,
+    "mobile_scroll_width": 390,
+    "live_terminal_and_training_lab_share_status": true,
+    "actual_head_delta_displayed": true
+  }
+}

@@ -1,3 +1,4 @@
+import { TerminalLearning } from "./LiveLearning";
 import type { MarketGateState } from "../lib/types";
 import {
   ExpertsSection,
@@ -21,6 +22,7 @@ export function Dashboard({
 }) {
   return (
     <>
+      <TerminalLearning />
       <SignalFlow state={state} ready={ready} nextRefresh={nextRefresh} />
       <details className="inspect-details">
         <summary>Inspect numeric state &amp; risk diagnostics</summary>

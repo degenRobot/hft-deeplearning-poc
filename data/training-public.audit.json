@@ -1,0 +1,102 @@
+{
+  "schema": "public-recording-audit-v1",
+  "recording": {
+    "path": "data/training-public.jsonl",
+    "sha256": "0e97091203e17d5f5788e280e3eaf3c18f60d156e322b5cfafdd7cc95abaa3e1",
+    "bytes": 1780102,
+    "total_events": 9013,
+    "book_events": 4146,
+    "trade_events": 4867,
+    "venue": "binance",
+    "market": "spot",
+    "symbol": "BTCUSDT",
+    "start_utc": "2026-09-05T11:52:13.226000Z",
+    "end_utc": "2026-09-05T12:07:12.695000Z",
+    "span_seconds": 899.469
+  },
+  "capture": {
+    "requested_seconds": 900,
+    "elapsed_wall_seconds": 906.273,
+    "stop_reason": "deadline",
+    "reconnects": 0,
+    "max_events": 350000,
+    "max_bytes": 100000000,
+    "book_interval_ms": 100,
+    "all_aggregate_trades_retained": true,
+    "credentials_required": false,
+    "streams": [
+      "btcusdt@bookTicker",
+      "btcusdt@aggTrade"
+    ],
+    "host": "data-stream.binance.vision",
+    "post_deadline_note": "WebSocket close cleanup accounts for wall elapsed time beyond the 900 second capture deadline."
+  },
+  "quality": {
+    "parsed_valid_events": 9013,
+    "ends_with_complete_jsonl_line": true,
+    "duplicate_aggregate_trade_ids": 0,
+    "missing_aggregate_trade_ids_within_observed_range": 0,
+    "closed_frames": 899,
+    "missing_second_gaps": 0,
+    "max_frame_gap_ms": 1000,
+    "max_retained_quote_updates_per_second": 9.0,
+    "feature_names": [
+      "return_1s",
+      "return_5s",
+      "realized_volatility",
+      "spread_bps",
+      "book_imbalance",
+      "microprice_displacement",
+      "signed_flow_ratio",
+      "trade_arrivals",
+      "quote_updates",
+      "fair_value_distance"
+    ],
+    "features_all_finite": true
+  },
+  "existing_training_split": {
+    "builder": "src/market_gate/training.py at base 159bf32",
+    "lookback_frames": 30,
+    "horizon_frames": 5,
+    "validation_fraction": 0.2,
+    "candidate_windows": 865,
+    "contiguous_usable_windows": 865,
+    "gap_rejected_windows": 0,
+    "train_examples": 658,
+    "validation_examples": 173,
+    "embargo_excluded_examples": 34,
+    "last_train_target_utc": "2026-09-05T12:03:44.999000Z",
+    "first_validation_input_utc": "2026-09-05T12:03:45.999000Z",
+    "note": "This audits the existing 80/20 training helper. The new 50/30/20 supervised/RL/holdout trainer requires its own split receipt."
+  },
+  "limitations": [
+    "Book updates are sampled at most once per 100ms; quote_updates counts retained quotes, not all exchange updates. This differs from an unsampled live feature distribution.",
+    "Spot bookTicker lacks a required exchange event timestamp; normalized book event_ts_ms falls back to local receive time. aggTrade uses the exchange E event timestamp. Both are milliseconds.",
+    "A single approximately 15 minute market segment demonstrates training plumbing; it does not establish representative coverage, profitable behavior, or production readiness.",
+    "Public historical spot aggTrades/trades/klines lack the bid/ask prices and sizes needed by the existing quote-dependent inputs. Do not fabricate missing quote data from trades."
+  ],
+  "sources": [
+    "https://github.com/binance/binance-spot-api-docs/blob/master/faqs/market_data_only.md",
+    "https://github.com/binance/binance-spot-api-docs/blob/master/web-socket-streams.md",
+    "https://github.com/binance/binance-public-data"
+  ],
+  "validation": {
+    "command": "pytest -q tests/test_record_binance.py tests/test_binance_feed.py tests/test_training.py",
+    "passed": 15,
+    "ruff": "passed on scripts/record_binance.py and tests/test_record_binance.py"
+  },
+  "training_lab_split": {
+    "builder": "integrated src/market_gate/training_lab.py",
+    "nominal_split": "50/30/20",
+    "history_embargo_frames": 30,
+    "max_rl_steps": 120,
+    "supervised_examples": 415,
+    "rl_actions": 42,
+    "frozen_holdout_examples": 116,
+    "rl_action_stride_frames": 5,
+    "supervised_last_target_frame": 448,
+    "rl_first_start_frame": 479,
+    "rl_last_target_frame": 718,
+    "holdout_first_start_frame": 749
+  }
+}

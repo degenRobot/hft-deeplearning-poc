@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-05",
+  "implementation_revision": "4261865c295def602a75c8daddb07743e1d9f51d",
+  "runs": [
+    {
+      "backend": "modal",
+      "run_id": "b51626d3290f49f0822a34402736d56d",
+      "status": "completed",
+      "hidden_sizes": [
+        1024,
+        512
+      ],
+      "parameter_count": 834563,
+      "supervised_steps": 2,
+      "rl_steps": 42,
+      "source_recording_sha256": "0e97091203e17d5f5788e280e3eaf3c18f60d156e322b5cfafdd7cc95abaa3e1",
+      "model_shapes": {
+        "supervised": {
+          "w1": [
+            300,
+            1024
+          ],
+          "w2": [
+            1024,
+            512
+          ],
+          "w3": [
+            512,
+            3
+          ]
+        },
+        "adapted": {
+          "w1": [
+            300,
+            1024
+          ],
+          "w2": [
+            1024,
+            512
+          ],
+          "w3": [
+            512,
+            3
+          ]
+        }
+      },
+      "model_sha256": {
+        "supervised": "ead9b1f8bc0f4be7cdf230745813c3d251bb2c57d7172d78bfcc79ce27a929a8",
+        "adapted": "bd86cda3be9776d195d40091d9b80677d59992d331c2b4c84cc214fdf3cb81f9"
+      },
+      "supervised_loss_first": 1.1020171642303467,
+      "supervised_loss_last": 1.2589116096496582,
+      "nonzero_weight_update_steps": {
+        "supervised": 2,
+        "rl": 41
+      },
+      "evaluation": {
+        "supervised": 0.0,
+        "adapted": 0.0,
+        "uniform": 0.0,
+        "microprice": 0.0,
+        "trade_flow": 0.0,
+        "reversion": 0.0
+      },
+      "app_id": "ap-967tR5UtGc5QdVons4iiz5",
+      "function_call_id": "fc-01M1RS5PH5WJ6BHSA6K68JFCQQ",
+      "resources": {
+        "cpu": [
+          2,
+          2
+        ],
+        "memory": [
+          2048,
+          2048
+        ],
+        "timeout": 600,
+        "retries": 0,
+        "max_containers": 1
+      }
+    },
+    {
+      "backend": "local",
+      "run_id": "d12406e5b6324459ab52ad9553260f5f",
+      "status": "completed",
+      "hidden_sizes": [
+        256,
+        128
+      ],
+      "parameter_count": 110339,
+      "supervised_steps": 2,
+      "rl_steps": 42,
+      "source_recording_sha256": "0e97091203e17d5f5788e280e3eaf3c18f60d156e322b5cfafdd7cc95abaa3e1",
+      "model_shapes": {
+        "supervised": {
+          "w1": [
+            300,
+            256
+          ],
+          "w2": [
+            256,
+            128
+          ],
+          "w3": [
+            128,
+            3
+          ]
+        },
+        "adapted": {
+          "w1": [
+            300,
+            256
+          ],
+          "w2": [
+            256,
+            128
+          ],
+          "w3": [
+            128,
+            3
+          ]
+        }
+      },
+      "model_sha256": {
+        "supervised": "a033133b726121fefd9cf0107755f6ee351729194a89893bc9bb5bcfc9faf41c",
+        "adapted": "5ebcc5d31ef6583f8c7f54515e0936a689760cac88632b4d9cdd79dbe83a84f8"
+      },
+      "supervised_loss_first": 1.1003791093826294,
+      "supervised_loss_last": 1.0942469835281372,
+      "nonzero_weight_update_steps": {
+        "supervised": 2,
+        "rl": 41
+      },
+      "evaluation": {
+        "supervised": 0.0,
+        "adapted": 0.0,
+        "uniform": 0.0,
+        "microprice": 0.0,
+        "trade_flow": 0.0,
+        "reversion": 0.0
+      }
+    }
+  ],
+  "note": "Real runs launched through the browser. Two warmup epochs verify configuration and artifact transport; they are not tuning results. All holdout rewards are zero. Billing and account credit balance are unknown."
+}

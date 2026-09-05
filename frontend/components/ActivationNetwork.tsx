@@ -126,8 +126,8 @@ export const ActivationNetwork = memo(function ActivationNetwork({
         <summary>Inspect a neuron &amp; architecture</summary>
         <p>
           300 inputs → 64 ReLU → 32 ReLU → 3 weights. 21,443 parameters. Lines
-          show layer flow, not individual connection strengths. Inference, not
-          live retraining.
+          show layer flow, not individual connection strengths. Optional Live RL
+          adapts the output head; these nodes show inference.
         </p>
         <div className="neuron-controls">
           <label>

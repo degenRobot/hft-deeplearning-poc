@@ -16,9 +16,18 @@ export type VisualEvent = {
   scores: number[];
   signal: number;
   gate_revision: number;
+  neural_score?: number | null;
 };
 export type VisualWindow = { timestamp_ms: number; values: number[] }[];
+export type NeuralExpertTelemetry = {
+  score: number;
+  model_version: string;
+  parameter_count: number;
+  inference_us: number;
+  inputs: number[];
+};
 export type VisualTelemetry = {
+  neural_expert?: NeuralExpertTelemetry | null;
   candles?: Candle[];
   activations?: Activations | null;
   events: VisualEvent[];
@@ -50,7 +59,7 @@ export function parseVisual(v: unknown): VisualTelemetry | null {
   if (
     !object(v) ||
     !Array.isArray(v.events) ||
-    v.events.length > 48 ||
+    v.events.length > 64 ||
     !Array.isArray(v.window) ||
     v.window.length > 30 ||
     !probability(v.proposed) ||
@@ -76,6 +85,11 @@ export function parseVisual(v: unknown): VisualTelemetry | null {
         numeric(e.size) &&
         e.size >= 0 &&
         vector(e.scores, 3) &&
+        e.scores.every((score) => score >= -1 && score <= 1) &&
+        (e.neural_score == null ||
+          (numeric(e.neural_score) &&
+            e.neural_score >= -1 &&
+            e.neural_score <= 1)) &&
         numeric(e.signal) &&
         Number.isSafeInteger(e.gate_revision) &&
         Number(e.gate_revision) >= 0 &&
@@ -85,6 +99,25 @@ export function parseVisual(v: unknown): VisualTelemetry | null {
     )
   )
     return null;
+  if (v.neural_expert != null) {
+    const expert = v.neural_expert;
+    if (
+      !object(expert) ||
+      !numeric(expert.score) ||
+      expert.score < -1 ||
+      expert.score > 1 ||
+      typeof expert.model_version !== "string" ||
+      !expert.model_version.trim() ||
+      expert.model_version.length > 200 ||
+      !Number.isSafeInteger(expert.parameter_count) ||
+      Number(expert.parameter_count) <= 0 ||
+      !numeric(expert.inference_us) ||
+      expert.inference_us < 0 ||
+      !vector(expert.inputs, 3) ||
+      !expert.inputs.every((score) => score >= -1 && score <= 1)
+    )
+      return null;
+  }
   if (
     !v.window.every(
       (f, i, all) =>

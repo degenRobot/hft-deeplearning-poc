@@ -12,15 +12,19 @@ export default function Home() {
     : market.state.health.feed_status === "failed"
       ? `Market feed failed (${market.state.health.feed_error || "unknown error"}); adjust the config or reset the run.`
       : market.status === "connecting"
-        ? market.state.health.feed_status === "reconnecting"
-          ? "Backend connected; the public market feed is reconnecting…"
-          : "Opening the backend socket; waiting for a ready snapshot…"
-        : market.lastError ||
-          (market.status === "connected"
-            ? market.state.source === "binance"
-              ? "Streaming Binance public market data"
-              : "Streaming the deterministic replay fixture"
-            : "Backend stream is not connected");
+        ? "Opening the backend socket; waiting for a snapshot…"
+        : market.status === "connected" && !market.hasSnapshot
+          ? market.state.health.feed_status === "reconnecting"
+            ? "Backend connected; the public market feed is reconnecting…"
+            : market.state.health.risk_reason === "stale_data"
+              ? "Backend connected; market data is stale. Waiting for fresh data…"
+              : "Backend connected; waiting for market data…"
+          : market.lastError ||
+            (market.status === "connected"
+              ? market.state.source === "binance"
+                ? "Streaming Binance public market data"
+                : "Streaming the deterministic replay fixture"
+              : "Backend stream is not connected");
 
   return (
     <main className="shell">

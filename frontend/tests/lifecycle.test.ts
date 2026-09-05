@@ -108,6 +108,31 @@ afterEach(async () => {
 });
 
 describe("market hook lifecycle", () => {
+  it("keeps one connected socket while data readiness changes and guards stale data", async () => {
+    await mount();
+    const socket = FakeSocket.instances[0];
+    await flush(() => socket.onopen?.());
+    for (let i = 0; i < 10; i++) {
+      await flush(() => socket.sendState());
+      expect(latest.status).toBe("connected");
+      const stale = wireSnapshot();
+      stale.health.ready = false;
+      stale.health.book_age_ms = 3000;
+      stale.quote = null;
+      await flush(() => socket.onmessage?.({ data: JSON.stringify(stale) }));
+      expect(latest.status).toBe("connected");
+      expect(latest.hasSnapshot).toBe(false);
+      expect(latest.state.quote).toBeNull();
+    }
+    expect(FakeSocket.instances).toHaveLength(1);
+    await flush(() => socket.sendState());
+    expect(latest.hasSnapshot).toBe(true);
+    await flush(() => socket.onclose?.());
+    expect(latest.status).toBe("disconnected");
+    await flush(() => vi.advanceTimersByTime(3500));
+    expect(FakeSocket.instances).toHaveLength(2);
+  });
+
   it("expires a silent open socket and recovers only on a valid snapshot", async () => {
     await mount();
     const socket = FakeSocket.instances[0];

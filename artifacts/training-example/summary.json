@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "recording_sha256": "0e97091203e17d5f5788e280e3eaf3c18f60d156e322b5cfafdd7cc95abaa3e1",
+  "events": 9013,
+  "frames": 899,
+  "splits": {
+    "supervised_examples": 415,
+    "rl_examples": 42,
+    "holdout_examples": 116
+  },
+  "optimizer_steps": 54,
+  "supervised_loss_first": 1.1050548553466797,
+  "supervised_loss_last": 1.0826040506362915,
+  "rl_nonzero_sampled_rewards": 9,
+  "phases_with_weight_changes": [
+    "rl",
+    "supervised"
+  ],
+  "evaluation": {
+    "supervised": 0.0,
+    "adapted": 0.0,
+    "uniform": 0.0,
+    "microprice": 0.0,
+    "trade_flow": 0.0,
+    "reversion": 0.0
+  },
+  "holdout_nonzero_reward_rows": 0,
+  "conclusion": "Training mechanics demonstrated; flat holdout rewards cannot distinguish models or baselines.",
+  "local_remote_parameter_comparison": {
+    "supervised": {
+      "max_parameter_abs_difference": 0.973697754218847,
+      "max_prediction_abs_difference": 2.8018127318230057e-08,
+      "argmax_differences": 0,
+      "compared_windows": 865
+    },
+    "adapted": {
+      "max_parameter_abs_difference": 0.9732320929306297,
+      "max_prediction_abs_difference": 2.0545261492088684e-08,
+      "argmax_differences": 0,
+      "compared_windows": 865
+    }
+  },
+  "modal_execution": {
+    "app_id": "ap-MqT73Ypn52VJIMsBGNP4uF",
+    "function_call_id": "fc-01M1RQP1SC7ZQWBYB7H4XXNNGH",
+    "resources": {
+      "cpu": [
+        2,
+        2
+      ],
+      "memory": [
+        2048,
+        2048
+      ],
+      "timeout": 600,
+      "retries": 0,
+      "max_containers": 1
+    }
+  },
+  "local_duration_seconds": 15.093,
+  "modal_duration_seconds": 11.693,
+  "billing_cost": null
+}

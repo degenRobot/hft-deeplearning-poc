@@ -84,7 +84,7 @@ snapshots clear the charts and quote, and new runs reset observation buffers.
 
 The active dashboard gate loads `models/gate-demo.npz`. The dashboard's **original v1 offline
 walkthrough** reads the archived `artifacts/training-demo.json`; its separate
-`models/gate-binance-demo.npz` is not the active gate. Running a trainer does not update the
+`models/gate-binance-demo.npz` is not the active gate. Running an offline trainer does not update the
 dashboard or either committed model.
 
 The corrected v2 pipeline retains event-time frame timestamps, resets feature history at gaps,
@@ -101,6 +101,11 @@ See [the frozen contract](docs/experiment-contract.md) and
 [the complete experiment receipt](artifacts/phase2-summary.json).
 
 ## Run a local reproducibility example
+
+For the new public-data supervised + RL training view, open **`/training`**.
+It displays actual input windows, activations, gradients and weight changes while a
+bounded example runs. See [the training lab guide](docs/training-lab.md) for data,
+temporal splits, local replay updates and the one-shot Modal runner.
 
 ```sh
 uv sync --extra dev --extra training
@@ -131,6 +136,12 @@ before invoking `--run`. CPU/memory limits and execution timeout do not cap whol
 See [the parity reference receipt](artifacts/parity-reference-v2.json).
 
 ## Change the inputs
+
+**Live RL** is optional in the terminal and Training Lab: a local 5–60 second loop
+adapts the gate's 99 output parameters from delayed observed market moves. Hidden
+layers stay frozen. Pause retains weights; reset or runtime setting changes restore
+the demo checkpoint. The Training Lab's Live RL view shows actual updates automatically.
+See [continuous learning and transfer-learning notes](docs/training-lab.md#continuous-learning-in-the-terminal).
 
 Defaults live in `configs/demo.toml`; the dashboard edits the same fields. Try uniform or static
 gate mode, zero higher-level influence, a shorter flow window, or Binance public data. Changes

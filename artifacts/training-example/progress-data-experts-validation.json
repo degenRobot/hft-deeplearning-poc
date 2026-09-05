@@ -1,0 +1,224 @@
+{
+  "source_revision": "91da2457188c64843eb5c64a092048981a800cfc",
+  "modal": {
+    "run_id": "c6491e8c23a7467ea36ad56c96da13e5",
+    "status": "completed",
+    "progress": {
+      "stage": "completed",
+      "completed_steps": 44,
+      "total_steps": 44,
+      "percent": 100,
+      "elapsed_seconds": 34.051219,
+      "remote_elapsed_seconds": 22.866331,
+      "compute_estimate_usd": 0.0007006243818399999
+    },
+    "execution": {
+      "input_sha256": "0e97091203e17d5f5788e280e3eaf3c18f60d156e322b5cfafdd7cc95abaa3e1",
+      "input_bytes": 1780102,
+      "sources": {
+        "__init__.py": "ffea070affc8c49a3998432ac2fd385407f6bcc9a1c5d7798babeb89ef3b5765",
+        "training_lab.py": "6ce66cb12983d85755c3424f95bcfc5183b48e339dfcd4390dd4afafb24a6dd8",
+        "training_options.py": "d0b21bbda1b0dd7e9388c53e53926de6f6f6a631a6e62a3910adf7c7eaea2b12",
+        "training.py": "25320cd5d69830920b4067d09154100ce7eef74eb7e994b4b8ebaf7df6cf643c",
+        "contracts.py": "9e7128f5b8863b3c47900d570c004055938927a44d51ee736ca7f5f911703e03",
+        "experts.py": "7c4d936977c8bb62e96cd59d1829131125123bf8ec881c8958c608e0974eea83",
+        "features.py": "10dfcd44bc995415b0e791ffdb803438044aade2228be5c2ffb443fd34f2d21f",
+        "gate.py": "2bb4d6ebefeb8760b048fdebafe4e71d19460c40d92f37842ff30b23c56e6230"
+      },
+      "resources": {
+        "cpu": [
+          2,
+          2
+        ],
+        "memory": [
+          2048,
+          2048
+        ],
+        "timeout": 600,
+        "retries": 0,
+        "max_containers": 1
+      },
+      "hidden_1": 64,
+      "hidden_2": 32,
+      "epochs": 2,
+      "learning_rate": 0.001,
+      "max_rl_steps": 120,
+      "seed": 7,
+      "note": "Execution timeout excludes image build/startup; limits are not a billing cap.",
+      "function_call_id": "fc-01M1RXQA491YDVTCQC9E680QWA",
+      "artifact_sha256": {
+        "gate-supervised.npz": "078e51b8d8f693e9065e904e7ed49fa26a1821229402dbe476810218f979b177",
+        "gate-adapted.npz": "e81ebfaf586163b875d092077889c16b87b37620e1ebdfb91e23bc3d0a421376"
+      },
+      "app_id": "ap-vVBXLq4L3bx51fRBpsqNRC",
+      "evaluation": {
+        "supervised": 0.0,
+        "adapted": 0.0,
+        "uniform": 0.0,
+        "microprice": 0.0,
+        "trade_flow": 0.0,
+        "reversion": 0.0
+      },
+      "status": "completed"
+    },
+    "artifacts_verified": true,
+    "cost_is_estimate_not_billing": true
+  },
+  "tiny_expert": {
+    "receipt": {
+      "schema_version": 1,
+      "generated_at": "2026-09-05T13:52:06.336840+00:00",
+      "model_version": "tiny-expert-478fc1d29ea6",
+      "model_sha256": "76814215dd47816a7a8187599b763bb12afedd9ff0f73d3b94e4805ee7ac9b24",
+      "dataset_sha256": "0e97091203e17d5f5788e280e3eaf3c18f60d156e322b5cfafdd7cc95abaa3e1",
+      "source_sha256": {
+        "tiny_expert.py": "8a069bbac4b700f29ef0d8b6052518efabd071681e30b6cf137fdc5b9130ffd4",
+        "engine.py": "7ede184a8c55cd76382c7e1060412975c9d9437d8dece91d8a84d5ba386a5a4d",
+        "experts.py": "7c4d936977c8bb62e96cd59d1829131125123bf8ec881c8958c608e0974eea83",
+        "config.py": "400dc89d06819058a718b1470de5e3cefbf04d50716f1b3764e4c466c8cf24a9",
+        "training.py": "25320cd5d69830920b4067d09154100ce7eef74eb7e994b4b8ebaf7df6cf643c",
+        "features.py": "10dfcd44bc995415b0e791ffdb803438044aade2228be5c2ffb443fd34f2d21f",
+        "contracts.py": "9e7128f5b8863b3c47900d570c004055938927a44d51ee736ca7f5f911703e03",
+        "gate.py": "2bb4d6ebefeb8760b048fdebafe4e71d19460c40d92f37842ff30b23c56e6230",
+        "paper.py": "f1a86d2bcb181a557eca0a5cf9c8ef550eb5ac796b19b8e39c5c051f93877738",
+        "risk.py": "3dfe56b63bfe4d602ec60d35bed2ba34418b025cb94550f7b84ad6532a75a3d2",
+        "scripts/train_tiny_expert.py": "5d9fa12e04757db5d1811e2aa28d468c818b5c3bf40f3c8ee98489fc2acb7a51"
+      },
+      "architecture": {
+        "layer_sizes": [
+          3,
+          8,
+          1
+        ],
+        "activations": [
+          "tanh",
+          "tanh"
+        ]
+      },
+      "parameter_count": 41,
+      "input_order": [
+        "microprice",
+        "flow",
+        "reversion"
+      ],
+      "input_source": "MarketEngine.process current bounded rule scores, sampled once per second",
+      "score_config": {
+        "flow_window_trades": 64,
+        "fair_history_events": 12
+      },
+      "clock": "Binance receive_ts_ms with recording arrival order for ties; same rule state as runtime",
+      "target": "tanh(mid return in bps to first fresh sample at least 5 seconds later)",
+      "target_horizon_ms": [
+        5000,
+        6500
+      ],
+      "split": {
+        "method": "chronological 70/30; training target strictly before holdout start",
+        "boundary_ts_ms": 1788609758270,
+        "train_examples": 620,
+        "holdout_examples": 268,
+        "train_last_target_ts_ms": 1788609757298,
+        "holdout_first_input_ts_ms": 1788609758270
+      },
+      "training": {
+        "epochs": 300,
+        "seed": 17,
+        "learning_rate": 0.01,
+        "optimizer": "Adam",
+        "initial_mse": 0.2184269279241562,
+        "final_mse": 0.06785079091787338,
+        "parameter_delta_l2": 4.030901908874512
+      },
+      "holdout": {
+        "model_mse": 0.00990306492894888,
+        "zero_prediction_mse": 0.0,
+        "target_standard_deviation": 0.0
+      },
+      "runtime_parity_max_absolute_error": 4.608116543902696e-08,
+      "benchmark": {
+        "scope": "local warm NumPy predict including input validation; no engine or networking",
+        "samples": 5000,
+        "warmup_calls": 200,
+        "median_us": 6.5,
+        "p95_us": 6.75,
+        "platform": "macOS-26.5.1-arm64-arm-64bit",
+        "machine": "arm64"
+      },
+      "versions": {
+        "python": "3.12.13",
+        "numpy": "2.5.2",
+        "torch": "2.14.0"
+      },
+      "limitations": [
+        "Shadow only; output never changes the 3-expert gate, contributions or quotes.",
+        "Short public capture and overlapping labels do not establish generalization.",
+        "Recorded books were sampled; replay cannot reconstruct all live quote updates.",
+        "Predicted mid movement is not fills, costs or realized trading P&L.",
+        "Local warm timings are not an HFT latency guarantee."
+      ]
+    },
+    "receipt_sha256": "c66c52b6174f0fb297d2ed344366f12319d0439a486ac011a2ed0a2d79f9cb21",
+    "all_source_and_model_hashes_verified": true
+  },
+  "public_capture": {
+    "schema_version": 1,
+    "selected": {
+      "id": "builtin",
+      "label": "Built-in public recording",
+      "path": "data/training-public.jsonl",
+      "source": "binance_public",
+      "symbol": "BTCUSDT",
+      "event_count": 9013,
+      "book_count": 4146,
+      "trade_count": 4867,
+      "bytes": 1780102,
+      "first_event_ts_ms": 1788609133226,
+      "last_event_ts_ms": 1788610032695,
+      "sha256": "0e97091203e17d5f5788e280e3eaf3c18f60d156e322b5cfafdd7cc95abaa3e1",
+      "frame_count": 899,
+      "training_ready": true,
+      "error": null
+    },
+    "capture": {
+      "id": "fd5ee06b9af0428588a56b3e7a4afebd",
+      "status": "incomplete",
+      "requested_seconds": 30,
+      "elapsed_seconds": 39.054,
+      "progress": 0.99,
+      "events": 463,
+      "book_count": 163,
+      "trade_count": 300,
+      "bytes": 90235,
+      "first_event_ts_ms": 1788616583179,
+      "last_event_ts_ms": 1788616612197,
+      "started_at": "2026-09-05T13:56:22.072112+00:00",
+      "ended_at": "2026-09-05T13:57:01.316326+00:00",
+      "updated_at": "2026-09-05T13:57:01.316424+00:00",
+      "error": "insufficient contiguous frames: need lookback_frames + horizon_frames (35)",
+      "can_stop": false,
+      "symbol": "BTCUSDT",
+      "source": "binance_public",
+      "sha256": "482ffab244ea3a610988726afed6502d72294338b4964b86b566b0201e8d05da",
+      "feed_status": "running",
+      "reconnects": 0,
+      "stop_reason": "deadline",
+      "frame_count": 29,
+      "training_ready": false,
+      "path": "data/training-captures/fd5ee06b9af0428588a56b3e7a4afebd.jsonl"
+    }
+  },
+  "checks": {
+    "python_tests": 213,
+    "frontend_tests": 110,
+    "production_build": "passed",
+    "mutation_regressions": [
+      "arrival order for tied receive timestamps",
+      "invalid capture does not replace selected dataset",
+      "duplicate heatmap event IDs"
+    ],
+    "browser": {
+      "training_390px": "no page overflow",
+      "terminal_390px": "390px document width with four rows and 256 cells (64 events), connected; absolute accessibility text contained by positioned scroller"
+    }
+  }
+}

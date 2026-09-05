@@ -1,0 +1,45 @@
+{
+  "input_sha256": "0e97091203e17d5f5788e280e3eaf3c18f60d156e322b5cfafdd7cc95abaa3e1",
+  "input_bytes": 1780102,
+  "sources": {
+    "__init__.py": "ffea070affc8c49a3998432ac2fd385407f6bcc9a1c5d7798babeb89ef3b5765",
+    "training_lab.py": "ca6312178bcd495f0de422525b5d0706ca7f68c02393076488f0416d8dd65afe",
+    "training.py": "25320cd5d69830920b4067d09154100ce7eef74eb7e994b4b8ebaf7df6cf643c",
+    "contracts.py": "9e7128f5b8863b3c47900d570c004055938927a44d51ee736ca7f5f911703e03",
+    "experts.py": "7c4d936977c8bb62e96cd59d1829131125123bf8ec881c8958c608e0974eea83",
+    "features.py": "10dfcd44bc995415b0e791ffdb803438044aade2228be5c2ffb443fd34f2d21f",
+    "gate.py": "2bb4d6ebefeb8760b048fdebafe4e71d19460c40d92f37842ff30b23c56e6230"
+  },
+  "resources": {
+    "cpu": [
+      2,
+      2
+    ],
+    "memory": [
+      2048,
+      2048
+    ],
+    "timeout": 600,
+    "retries": 0,
+    "max_containers": 1
+  },
+  "epochs": 12,
+  "max_rl_steps": 120,
+  "seed": 7,
+  "note": "Execution timeout excludes image build/startup; limits are not a billing cap.",
+  "function_call_id": "fc-01M1RQP1SC7ZQWBYB7H4XXNNGH",
+  "artifact_sha256": {
+    "gate-supervised.npz": "ca98ec79306b9a1972b23013170da97313e567cd31f383a0bd9d89fb4cca6ea6",
+    "gate-adapted.npz": "24cff0c43d330b4ea8a8a0c5ff2481780c200c19e6456e1fea896d7353eca619"
+  },
+  "app_id": "ap-MqT73Ypn52VJIMsBGNP4uF",
+  "evaluation": {
+    "supervised": 0.0,
+    "adapted": 0.0,
+    "uniform": 0.0,
+    "microprice": 0.0,
+    "trade_flow": 0.0,
+    "reversion": 0.0
+  },
+  "status": "completed"
+}

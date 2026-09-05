@@ -63,7 +63,8 @@ describe("visual telemetry", () => {
     expect(html).toContain("Waiting for activation telemetry from this pass");
     expect(html).not.toContain("data-activation=");
     expect(html).toContain("50.0%");
-    expect(html).toContain("Inference, not live retraining");
+    expect(html).toContain("Optional Live RL");
+    expect(html).toContain("these nodes show inference");
   });
   it("hides retained data and stops motion when readiness is lost", () => {
     const html = renderToStaticMarkup(

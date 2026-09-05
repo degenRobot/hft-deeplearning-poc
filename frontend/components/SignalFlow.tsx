@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ActivationNetwork } from "./ActivationNetwork";
+import { ExpertSignalHeatmap, signalDirection } from "./ExpertSignalHeatmap";
 import { CandleChart } from "./CandleChart";
 import type { CSSProperties } from "react";
 import type { MarketGateState } from "../lib/types";
@@ -20,6 +21,11 @@ const inputs = [
   "bid / ask pressure",
   "recent buy / sell volume",
   "price vs recent fair value",
+];
+const descriptions = [
+  "Combines bid/ask depth imbalance with the depth-weighted microprice’s distance from the mid. More bid pressure leans buy.",
+  "Compares recent buyer- and seller-initiated volume. More buyer volume leans buy, with strength increasing over recent trade arrivals.",
+  "Compares the current mid with the recent mean mid. Below that mean leans buy; above it leans sell.",
 ];
 const colors = ["#41d6b2", "#62c2ed", "#a99bff"];
 const price = (value: number) =>
@@ -378,10 +384,11 @@ export function SignalFlow({
             <span className="flow-kicker">FAST PATH / EVERY EVENT</span>
             <span className="speed-badge">EVERY EVENT</span>
           </div>
-          <h2>Three small experts</h2>
+          <h2>Three hand-coded experts</h2>
           <p className="flow-footnote">
-            Deterministic signals · traces show recent events on a −1 to +1
-            scale
+            Fixed deterministic rules produce the signals. A neural gate
+            allocates their weights when neural mode is active. The rules
+            themselves have no learned weights.
           </p>
           <div className="expert-cards">
             {EXPERT_KEYS.map((id, i) => {
@@ -392,6 +399,7 @@ export function SignalFlow({
                   key={id}
                   style={{ "--expert-color": colors[i] } as CSSProperties}
                 >
+                  <span className="expert-kind">HAND-CODED RULE</span>
                   <div className="expert-line">
                     <span>
                       <i />
@@ -399,6 +407,11 @@ export function SignalFlow({
                     </span>
                     <strong>
                       {ready && expert ? signed(expert.score) : "—"}
+                      {ready && expert && (
+                        <small className="expert-rule-direction">
+                          {signalDirection(expert.score)}
+                        </small>
+                      )}
                     </strong>
                   </div>
                   <div className="expert-subline">
@@ -410,6 +423,7 @@ export function SignalFlow({
                         : "—"}
                     </span>
                   </div>
+                  <p className="expert-rule-description">{descriptions[i]}</p>
                   <Spark
                     values={events.map((e) => e.scores[i])}
                     color={colors[i]}
@@ -424,6 +438,63 @@ export function SignalFlow({
               );
             })}
           </div>
+          <p className="flow-footnote">
+            Positive scores mean buy bias; negative scores mean sell bias.
+            Magnitude is signal strength, not calibrated confidence.
+          </p>
+          {visual?.neural_expert && (
+            <div className="neural-shadow-card">
+              <span className="expert-kind">
+                TRAINED MODEL / EXPERIMENTAL SHADOW
+              </span>
+              <div className="neural-shadow-title">
+                <h3>Tiny neural expert</h3>
+                <strong
+                  className={
+                    visual.neural_expert.score < 0
+                      ? "expert-history-negative"
+                      : "expert-history-positive"
+                  }
+                >
+                  {signed(visual.neural_expert.score, 3)}
+                </strong>
+              </div>
+              <p className="flow-footnote">
+                {signalDirection(visual.neural_expert.score)} from a learned
+                combination of the three rule scores, running alongside them.
+                Its output is excluded from the expert allocation, mixed signal
+                and synthetic quote.
+              </p>
+              <div className="neural-shadow-metadata">
+                <span>
+                  {visual.neural_expert.parameter_count.toLocaleString("en-US")}{" "}
+                  parameters
+                </span>
+                <span>
+                  {visual.neural_expert.inference_us.toFixed(1)} μs inference
+                </span>
+                <code>{visual.neural_expert.model_version}</code>
+              </div>
+              <div className="neural-shadow-inputs">
+                Rule score inputs:{" "}
+                {visual.neural_expert.inputs
+                  .map((value, index) => `${labels[index]} ${signed(value, 4)}`)
+                  .join(" · ")}
+              </div>
+              <p className="flow-footnote">
+                3 rule scores → 8 tanh neurons → 1 direction score. Timing
+                measures the local forward pass, excluding market and network
+                latency.{" "}
+                <a
+                  href="https://github.com/degenRobot/hft-deeplearning-poc/blob/codex/live-training-lab/scripts/train_tiny_expert.py"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  How this tiny model was trained ↗
+                </a>
+              </p>
+            </div>
+          )}
         </article>
         <article className="flow-card mix-card">
           <span className="flow-kicker">SIGNAL / RISK</span>
@@ -477,6 +548,7 @@ export function SignalFlow({
           </p>
         </article>
       </div>
+      <ExpertSignalHeatmap visual={visual} />
       <div className="market-lane">
         <CandleChart candles={visual?.candles || []} symbol={state.symbol} />
         <EventTape events={events} />
