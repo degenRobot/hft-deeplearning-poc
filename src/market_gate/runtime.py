@@ -111,9 +111,15 @@ class MarketRuntime:
             if self.config.source == "replay":
                 engine.feed_status = "replay_loading"
                 events = list(ReplayFeed(self.fixture_path))
-                for scheduled in replay_schedule(events, int(time.time() * 1000), cycles=None):
-                    if scheduled.delay_ms:
-                        await asyncio.sleep(scheduled.delay_ms / 1_000)
+                anchor_ts_ms = int(time.time() * 1000)
+                anchor_clock = time.monotonic()
+                for scheduled in replay_schedule(events, anchor_ts_ms, cycles=None):
+                    # Fixed deadlines absorb processing time and sleep overshoot instead
+                    # of accumulating them until healthy replay books appear stale.
+                    deadline = anchor_clock + (scheduled.event.event_ts_ms - anchor_ts_ms) / 1_000
+                    remaining = deadline - time.monotonic()
+                    if remaining > 0:
+                        await asyncio.sleep(remaining)
                     engine.process(scheduled.event, arrival_ts_ms=int(time.time() * 1000))
                     engine.feed_status = "running"
             else:

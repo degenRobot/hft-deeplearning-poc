@@ -1,6 +1,7 @@
 import asyncio
 from functools import partial
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from starlette.requests import Request
@@ -11,6 +12,53 @@ from market_gate.runtime import MarketRuntime
 
 ROOT = Path(__file__).parents[1]
 runtime_for = partial(MarketRuntime, LabConfig(), ROOT / "models" / "gate-demo.npz")
+
+
+def test_replay_deadlines_do_not_accumulate_sleep_and_processing_drift(monkeypatch):
+    from market_gate import runtime as runtime_module
+    from market_gate.contracts import BookEvent
+    from market_gate.feeds.replay import replay_schedule
+
+    clock = [1_000.0]
+    events = [BookEvent("replay", "BTCUSDT", 10, 10, 1, 99, 1, 101, 1)]
+    market = MarketRuntime(
+        LabConfig(gate_mode="uniform"),
+        ROOT / "models/gate-demo.npz",
+        ROOT / "fixtures/replay.jsonl",
+    )
+    monkeypatch.setattr(runtime_module, "ReplayFeed", lambda _: events)
+    monkeypatch.setattr(
+        runtime_module,
+        "replay_schedule",
+        lambda rows, anchor, cycles: replay_schedule(rows, anchor, 200),
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "time",
+        SimpleNamespace(time=lambda: clock[0], monotonic=lambda: clock[0]),
+    )
+
+    async def oversleep(seconds):
+        assert seconds > 0
+        clock[0] += seconds + 0.025
+
+    monkeypatch.setattr(runtime_module.asyncio, "sleep", oversleep)
+    process = market.engine.process
+    lateness = []
+
+    def process_with_work(event, arrival_ts_ms):
+        lateness.append(arrival_ts_ms - event.event_ts_ms)
+        process(event, arrival_ts_ms=arrival_ts_ms)
+        clock[0] += 0.010
+
+    monkeypatch.setattr(market.engine, "process", process_with_work)
+    asyncio.run(market._run_feed(market.engine))
+    assert len(lateness) == 200
+    # The old relative sleeps accumulate nearly seven seconds of artificial age.
+    assert max(lateness) <= 26
+    snapshot = market.engine.snapshot(now_ms=int(clock[0] * 1000))
+    assert snapshot["health"]["ready"] is True
+    assert snapshot["health"]["book_age_ms"] <= 36
 
 
 def test_runtime_reset_and_concurrent_lifecycle_ownership() -> None:

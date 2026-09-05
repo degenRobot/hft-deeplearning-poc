@@ -196,10 +196,8 @@ export function useMarketGate() {
         feed_generation: received.feed_generation,
       };
       setState(parsed);
-      if (!parsed.health.ready) {
-        setStatus("connecting");
-        return;
-      }
+      // Transport is connected once valid snapshots arrive. Market readiness
+      // independently gates the dashboard, including stale or restarting feeds.
       setStatus("connected");
     };
     socket.onerror = () => {
