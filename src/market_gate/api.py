@@ -13,6 +13,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from .config import load_config
 from .runtime import MarketRuntime
+from .training_service import TrainingService
 
 ALLOWED_MUTATION_ORIGINS = {"http://localhost:3000", "http://127.0.0.1:3000"}
 TRAINING_RECEIPT_PATH = Path(__file__).parents[2] / "artifacts" / "training-demo.json"
@@ -59,6 +60,7 @@ def create_app(config_path: str | Path = "configs/demo.toml") -> FastAPI:
     runtime = MarketRuntime(
         config, root / "models" / "gate-demo.npz", root / "fixtures" / "replay.jsonl"
     )
+    training_service = TrainingService(root)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -66,10 +68,12 @@ def create_app(config_path: str | Path = "configs/demo.toml") -> FastAPI:
         try:
             yield
         finally:
+            training_service.close()
             await runtime.stop()
 
     app = FastAPI(title="Market Gate Lab", version="0.1.0", lifespan=lifespan)
     app.state.runtime = runtime
+    app.state.training_service = training_service
     app.add_middleware(
         CORSMiddleware,
         allow_origins=sorted(ALLOWED_MUTATION_ORIGINS),
@@ -106,6 +110,28 @@ def create_app(config_path: str | Path = "configs/demo.toml") -> FastAPI:
     @app.get("/training")
     async def training() -> dict[str, object]:
         return load_training_receipt(TRAINING_RECEIPT_PATH)
+
+    @app.get("/training/live")
+    async def live_training() -> dict:
+        return training_service.snapshot()
+
+    @app.post("/training/live/start")
+    async def start_training(request: Request) -> dict:
+        require_allowed_mutation_origin(request)
+        try:
+            return training_service.start()
+        except FileNotFoundError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.post("/training/live/stop")
+    async def stop_training(request: Request) -> dict:
+        require_allowed_mutation_origin(request)
+        try:
+            return await asyncio.to_thread(training_service.stop)
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
 
     @app.websocket("/ws/market")
     async def market_socket(websocket: WebSocket) -> None:
