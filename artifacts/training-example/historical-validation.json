@@ -1,0 +1,445 @@
+{
+  "source_revision": "f53e3677e6969a94f9c341e8f7d77c8767bd3c20",
+  "verified_at": "2026-09-05T14:41:29.199019+00:00",
+  "historical_fetch": {
+    "schema_version": 1,
+    "selected": {
+      "id": "5ef953c2285342468bb7fbf8eec5d6ef",
+      "label": "Historical Binance 1s candles",
+      "path": "data/training-captures/5ef953c2285342468bb7fbf8eec5d6ef.jsonl",
+      "source": "binance_historical_candles",
+      "symbol": "ETHUSDT",
+      "event_count": 3600,
+      "book_count": 0,
+      "trade_count": 0,
+      "candle_count": 3600,
+      "source_mode": "historical_candles_1s",
+      "bytes": 896538,
+      "first_event_ts_ms": 1788220801000,
+      "last_event_ts_ms": 1788224400000,
+      "sha256": "9cd4f95aed04dd6f9c15727a9de474cbc9ee99856d402ce5012865870ed1db34",
+      "frame_count": 3600,
+      "training_ready": true,
+      "error": null,
+      "feature_names": [
+        "return_1s",
+        "return_5s",
+        "realized_volatility",
+        "spread_bps (unavailable)",
+        "book_imbalance (unavailable)",
+        "microprice_displacement (unavailable)",
+        "signed_flow_ratio",
+        "trade_arrivals",
+        "quote_updates (unavailable)",
+        "close_price_distance"
+      ],
+      "limitations": [
+        "Public Binance spot one-second candles; historical availability may contain gaps.",
+        "Candle closes proxy midprices; candle taker-buy volume proxies signed trade flow.",
+        "Spread, book imbalance, microprice displacement, and quote updates are unavailable and zero.",
+        "No reconstructed order books or synthetic trades; results are an offline approximation."
+      ]
+    },
+    "capture": {
+      "id": "5ef953c2285342468bb7fbf8eec5d6ef",
+      "status": "completed",
+      "mode": "historical",
+      "requested_seconds": 3600,
+      "elapsed_seconds": 3.581,
+      "progress": 1.0,
+      "events": 3600,
+      "book_count": 0,
+      "trade_count": 0,
+      "candle_count": 3600,
+      "bytes": 896538,
+      "first_event_ts_ms": 1788220801000,
+      "last_event_ts_ms": 1788224400000,
+      "started_at": "2026-09-05T14:35:48.128722+00:00",
+      "ended_at": "2026-09-05T14:35:51.876708+00:00",
+      "updated_at": "2026-09-05T14:35:51.876762+00:00",
+      "error": null,
+      "can_stop": false,
+      "symbol": "ETHUSDT",
+      "source": "binance_historical_candles",
+      "sha256": "9cd4f95aed04dd6f9c15727a9de474cbc9ee99856d402ce5012865870ed1db34",
+      "start": "2026-09-01T00:00:00Z",
+      "end": "2026-09-01T01:00:00Z",
+      "feed_status": "completed",
+      "reconnects": 0,
+      "coverage_fraction": 1.0,
+      "missing_candle_count": 0,
+      "stop_reason": "completed",
+      "frame_count": 3600,
+      "training_ready": true,
+      "path": "data/training-captures/5ef953c2285342468bb7fbf8eec5d6ef.jsonl"
+    }
+  },
+  "local": {
+    "schema_version": 1,
+    "generated_at": "2026-09-05T14:36:48.927240+00:00",
+    "dataset": {
+      "hidden_sizes": [
+        64,
+        32
+      ],
+      "activation_sample_sizes": [
+        64,
+        32
+      ],
+      "parameter_count": 21443,
+      "epochs": 2,
+      "learning_rate": 0.001,
+      "runtime_compatible": false,
+      "symbol": "ETHUSDT",
+      "venue": "binance_spot_candles",
+      "event_count": 3600,
+      "frame_count": 3600,
+      "supervised_examples": 1766,
+      "rl_examples": 15,
+      "holdout_examples": 656,
+      "sha256": "9cd4f95aed04dd6f9c15727a9de474cbc9ee99856d402ce5012865870ed1db34",
+      "feature_names": [
+        "return_1s",
+        "return_5s",
+        "realized_volatility",
+        "spread_bps (unavailable)",
+        "book_imbalance (unavailable)",
+        "microprice_displacement (unavailable)",
+        "signed_flow_ratio",
+        "trade_arrivals",
+        "quote_updates (unavailable)",
+        "close_price_distance"
+      ],
+      "expert_names": [
+        "microprice",
+        "flow",
+        "reversion"
+      ],
+      "lookback_frames": 30,
+      "horizon_frames": 5,
+      "history_embargo_frames": 30,
+      "clock": "event_ts_ms",
+      "normalization_fit": "supervised prefix only; folded into exported first layer",
+      "displayed_features": "raw features; Torch training uses train-only normalized inputs",
+      "supervised_last_target_ts_ms": 1788222600000,
+      "rl_first_start_ts_ms": 1788222631000,
+      "rl_last_target_ts_ms": 1788222735000,
+      "holdout_first_start_ts_ms": 1788223711000,
+      "holdout_last_target_ts_ms": 1788224400000,
+      "source_mode": "historical_candles_1s",
+      "limitations": [
+        "Public Binance spot one-second candles; historical availability may contain gaps.",
+        "Candle closes proxy midprices; candle taker-buy volume proxies signed trade flow.",
+        "Spread, book imbalance, microprice displacement, and quote updates are unavailable and zero.",
+        "No reconstructed order books or synthetic trades; results are an offline approximation."
+      ],
+      "target_price": "candle close",
+      "candle_count": 3600
+    },
+    "architecture": {
+      "layer_sizes": [
+        300,
+        64,
+        32,
+        3
+      ],
+      "activation": "ReLU",
+      "parameter_count": 21443,
+      "artifact_schema": "training-mlp-v1",
+      "runtime_compatible": false
+    },
+    "config": {
+      "hidden_1": 64,
+      "hidden_2": 32,
+      "epochs": 2,
+      "learning_rate": 0.001,
+      "max_rl_steps": 15,
+      "seed": 7,
+      "supervised_learning_rate": 0.001,
+      "rl_learning_rate": 0.0002,
+      "reward_scale_supervised_only": 0.4852452278137207,
+      "torch_threads": 1,
+      "deterministic_algorithms": true
+    },
+    "evaluation": {
+      "supervised": 0.021379554644227028,
+      "adapted": 0.021796641871333122,
+      "uniform": 0.016248684376478195,
+      "microprice": 0.0,
+      "trade_flow": 0.07265012711286545,
+      "reversion": -0.02390407770872116
+    },
+    "evaluation_objective": "frozen final holdout mean expert-proxy utility in bps",
+    "artifacts": {
+      "supervised": {
+        "path": "training-mlp-supervised.npz",
+        "sha256": "b39c23946f70e8644ec605d1e21ae9919aa43465fd58c31c15efbe2a9e072598",
+        "schema": "training-mlp-v1",
+        "runtime_compatible": false
+      },
+      "adapted": {
+        "path": "training-mlp-adapted.npz",
+        "sha256": "b47d2b2feaf4a5feeebb27b67e62d89e3a3861aa1ae608d5d45bd14e5ce7486a",
+        "schema": "training-mlp-v1",
+        "runtime_compatible": false
+      }
+    },
+    "parameter_count": 21443,
+    "steps": 17,
+    "duration_seconds": 1.134,
+    "provenance": {
+      "source_sha256": {
+        "training_lab.py": "b0e8931f19e4094d1ef674703afe69f2f7a964903b7a1675edcb64a6c0ba5a08",
+        "historical.py": "fffa2f8ecb351ad4e4b28fd52e510f13bee17e8efa3c7f3209f8935665ad9180",
+        "training_options.py": "d0b21bbda1b0dd7e9388c53e53926de6f6f6a631a6e62a3910adf7c7eaea2b12",
+        "training.py": "25320cd5d69830920b4067d09154100ce7eef74eb7e994b4b8ebaf7df6cf643c",
+        "features.py": "10dfcd44bc995415b0e791ffdb803438044aade2228be5c2ffb443fd34f2d21f",
+        "experts.py": "7c4d936977c8bb62e96cd59d1829131125123bf8ec881c8958c608e0974eea83",
+        "gate.py": "2bb4d6ebefeb8760b048fdebafe4e71d19460c40d92f37842ff30b23c56e6230"
+      },
+      "normalization_sha256": "1f7574eb2ef939998f8bfcc90ad63ef4be8b03581aebe99b2f6002b7af5857de",
+      "python": "3.12.13",
+      "numpy": "2.5.2",
+      "torch": "2.14.0"
+    },
+    "limitations": [
+      "Online policy updates consume recorded public data, not a live exchange feed.",
+      "REINFORCE is an expert-selection contextual bandit, not an execution simulator.",
+      "Rewards use future candle-close proxy utility, not fills or realized trading P&L.",
+      "Offline event-time ordering differs from live Binance receive-time sequencing.",
+      "quote_updates counts retained recorded books after sampling, not all live updates.",
+      "Held-out windows overlap; this short experiment does not establish generalisation.",
+      "Outputs are separate teaching artifacts; the live inference model is not replaced.",
+      "Public Binance spot one-second candles; historical availability may contain gaps.",
+      "Candle closes proxy midprices; candle taker-buy volume proxies signed trade flow.",
+      "Spread, book imbalance, microprice displacement, and quote updates are unavailable and zero.",
+      "No reconstructed order books or synthetic trades; results are an offline approximation."
+    ]
+  },
+  "modal": {
+    "schema_version": 1,
+    "generated_at": "2026-09-05T14:38:56.615262+00:00",
+    "dataset": {
+      "hidden_sizes": [
+        64,
+        32
+      ],
+      "activation_sample_sizes": [
+        64,
+        32
+      ],
+      "parameter_count": 21443,
+      "epochs": 2,
+      "learning_rate": 0.001,
+      "runtime_compatible": false,
+      "symbol": "ETHUSDT",
+      "venue": "binance_spot_candles",
+      "event_count": 3600,
+      "frame_count": 3600,
+      "supervised_examples": 1766,
+      "rl_examples": 120,
+      "holdout_examples": 656,
+      "sha256": "9cd4f95aed04dd6f9c15727a9de474cbc9ee99856d402ce5012865870ed1db34",
+      "feature_names": [
+        "return_1s",
+        "return_5s",
+        "realized_volatility",
+        "spread_bps (unavailable)",
+        "book_imbalance (unavailable)",
+        "microprice_displacement (unavailable)",
+        "signed_flow_ratio",
+        "trade_arrivals",
+        "quote_updates (unavailable)",
+        "close_price_distance"
+      ],
+      "expert_names": [
+        "microprice",
+        "flow",
+        "reversion"
+      ],
+      "lookback_frames": 30,
+      "horizon_frames": 5,
+      "history_embargo_frames": 30,
+      "clock": "event_ts_ms",
+      "normalization_fit": "supervised prefix only; folded into exported first layer",
+      "displayed_features": "raw features; Torch training uses train-only normalized inputs",
+      "supervised_last_target_ts_ms": 1788222600000,
+      "rl_first_start_ts_ms": 1788222631000,
+      "rl_last_target_ts_ms": 1788223260000,
+      "holdout_first_start_ts_ms": 1788223711000,
+      "holdout_last_target_ts_ms": 1788224400000,
+      "source_mode": "historical_candles_1s",
+      "limitations": [
+        "Public Binance spot one-second candles; historical availability may contain gaps.",
+        "Candle closes proxy midprices; candle taker-buy volume proxies signed trade flow.",
+        "Spread, book imbalance, microprice displacement, and quote updates are unavailable and zero.",
+        "No reconstructed order books or synthetic trades; results are an offline approximation."
+      ],
+      "target_price": "candle close",
+      "candle_count": 3600
+    },
+    "architecture": {
+      "layer_sizes": [
+        300,
+        64,
+        32,
+        3
+      ],
+      "activation": "ReLU",
+      "parameter_count": 21443,
+      "artifact_schema": "training-mlp-v1",
+      "runtime_compatible": false
+    },
+    "config": {
+      "hidden_1": 64,
+      "hidden_2": 32,
+      "epochs": 2,
+      "learning_rate": 0.001,
+      "max_rl_steps": 120,
+      "seed": 7,
+      "supervised_learning_rate": 0.001,
+      "rl_learning_rate": 0.0002,
+      "reward_scale_supervised_only": 0.4852452278137207,
+      "torch_threads": 1,
+      "deterministic_algorithms": true
+    },
+    "evaluation": {
+      "supervised": 0.021379554644227028,
+      "adapted": 0.021855894476175308,
+      "uniform": 0.016248684376478195,
+      "microprice": 0.0,
+      "trade_flow": 0.07265012711286545,
+      "reversion": -0.02390407770872116
+    },
+    "evaluation_objective": "frozen final holdout mean expert-proxy utility in bps",
+    "artifacts": {
+      "supervised": {
+        "path": "training-mlp-supervised.npz",
+        "sha256": "870644fd332ff41304758aea32f2e0ef64778238992fbed77ebc7696bc5c86bc",
+        "schema": "training-mlp-v1",
+        "runtime_compatible": false
+      },
+      "adapted": {
+        "path": "training-mlp-adapted.npz",
+        "sha256": "18f19a31d1f3d9ee28030ddefa2eace3f7923b76e57cbb38dbeea712ee79ba70",
+        "schema": "training-mlp-v1",
+        "runtime_compatible": false
+      }
+    },
+    "parameter_count": 21443,
+    "steps": 122,
+    "duration_seconds": 22.423,
+    "provenance": {
+      "source_sha256": {
+        "training_lab.py": "b0e8931f19e4094d1ef674703afe69f2f7a964903b7a1675edcb64a6c0ba5a08",
+        "historical.py": "fffa2f8ecb351ad4e4b28fd52e510f13bee17e8efa3c7f3209f8935665ad9180",
+        "training_options.py": "d0b21bbda1b0dd7e9388c53e53926de6f6f6a631a6e62a3910adf7c7eaea2b12",
+        "training.py": "25320cd5d69830920b4067d09154100ce7eef74eb7e994b4b8ebaf7df6cf643c",
+        "features.py": "10dfcd44bc995415b0e791ffdb803438044aade2228be5c2ffb443fd34f2d21f",
+        "experts.py": "7c4d936977c8bb62e96cd59d1829131125123bf8ec881c8958c608e0974eea83",
+        "gate.py": "2bb4d6ebefeb8760b048fdebafe4e71d19460c40d92f37842ff30b23c56e6230"
+      },
+      "normalization_sha256": "1f7574eb2ef939998f8bfcc90ad63ef4be8b03581aebe99b2f6002b7af5857de",
+      "python": "3.12.10",
+      "numpy": "2.5.2",
+      "torch": "2.14.0+cu130"
+    },
+    "limitations": [
+      "Online policy updates consume recorded public data, not a live exchange feed.",
+      "REINFORCE is an expert-selection contextual bandit, not an execution simulator.",
+      "Rewards use future candle-close proxy utility, not fills or realized trading P&L.",
+      "Offline event-time ordering differs from live Binance receive-time sequencing.",
+      "quote_updates counts retained recorded books after sampling, not all live updates.",
+      "Held-out windows overlap; this short experiment does not establish generalisation.",
+      "Outputs are separate teaching artifacts; the live inference model is not replaced.",
+      "Public Binance spot one-second candles; historical availability may contain gaps.",
+      "Candle closes proxy midprices; candle taker-buy volume proxies signed trade flow.",
+      "Spread, book imbalance, microprice displacement, and quote updates are unavailable and zero.",
+      "No reconstructed order books or synthetic trades; results are an offline approximation."
+    ]
+  },
+  "modal_execution": {
+    "input_sha256": "9cd4f95aed04dd6f9c15727a9de474cbc9ee99856d402ce5012865870ed1db34",
+    "input_bytes": 896538,
+    "sources": {
+      "__init__.py": "ffea070affc8c49a3998432ac2fd385407f6bcc9a1c5d7798babeb89ef3b5765",
+      "training_lab.py": "b0e8931f19e4094d1ef674703afe69f2f7a964903b7a1675edcb64a6c0ba5a08",
+      "historical.py": "fffa2f8ecb351ad4e4b28fd52e510f13bee17e8efa3c7f3209f8935665ad9180",
+      "training_options.py": "d0b21bbda1b0dd7e9388c53e53926de6f6f6a631a6e62a3910adf7c7eaea2b12",
+      "training.py": "25320cd5d69830920b4067d09154100ce7eef74eb7e994b4b8ebaf7df6cf643c",
+      "contracts.py": "9e7128f5b8863b3c47900d570c004055938927a44d51ee736ca7f5f911703e03",
+      "experts.py": "7c4d936977c8bb62e96cd59d1829131125123bf8ec881c8958c608e0974eea83",
+      "features.py": "10dfcd44bc995415b0e791ffdb803438044aade2228be5c2ffb443fd34f2d21f",
+      "gate.py": "2bb4d6ebefeb8760b048fdebafe4e71d19460c40d92f37842ff30b23c56e6230"
+    },
+    "resources": {
+      "cpu": [
+        2,
+        2
+      ],
+      "memory": [
+        2048,
+        2048
+      ],
+      "timeout": 600,
+      "retries": 0,
+      "max_containers": 1
+    },
+    "hidden_1": 64,
+    "hidden_2": 32,
+    "epochs": 2,
+    "learning_rate": 0.001,
+    "max_rl_steps": 120,
+    "seed": 7,
+    "note": "Execution timeout excludes image build/startup; limits are not a billing cap.",
+    "function_call_id": "fc-01M1S039P2F3THGGFESVJ2WV4W",
+    "artifact_sha256": {
+      "training-mlp-supervised.npz": "870644fd332ff41304758aea32f2e0ef64778238992fbed77ebc7696bc5c86bc",
+      "training-mlp-adapted.npz": "18f19a31d1f3d9ee28030ddefa2eace3f7923b76e57cbb38dbeea712ee79ba70"
+    },
+    "app_id": "ap-qPFYjp9PmnN788TRRVWtCy",
+    "evaluation": {
+      "supervised": 0.021379554644227028,
+      "adapted": 0.021855894476175308,
+      "uniform": 0.016248684376478195,
+      "microprice": 0.0,
+      "trade_flow": 0.07265012711286545,
+      "reversion": -0.02390407770872116
+    },
+    "status": "completed"
+  },
+  "modal_progress": {
+    "stage": "completed",
+    "completed_steps": 122,
+    "total_steps": 122,
+    "percent": 100,
+    "elapsed_seconds": 53.783098,
+    "remote_elapsed_seconds": 39.871697,
+    "compute_estimate_usd": 0.0012216687960799999
+  },
+  "checks": {
+    "python_tests": 274,
+    "frontend_tests": 118,
+    "production_build": "passed",
+    "source_input_artifact_hashes": "verified",
+    "mutations_caught": [
+      "early source exhaustion cannot select a trainable partial range",
+      "historical model schema cannot load in live book gate"
+    ],
+    "browser": [
+      "Native UTC input edits persist and submit exact custom dates",
+      "ETHUSDT 2026-09-01 00:00 to 01:00 UTC: 3600 candles, zero missing, 3.581 seconds fetch",
+      "390px page fits; feature-label wrapping adjusted after screenshot review",
+      "Local teaching run completed17 updates; Modal completed122 updates"
+    ]
+  },
+  "standalone_cli": {
+    "symbol": "SOLUSDT",
+    "start": "2026-09-01T00:00:00Z",
+    "end": "2026-09-01T00:10:00Z",
+    "candles": 600,
+    "bytes": 146433,
+    "sha256": "1817eba8714a1b333748ef9fc86eee98a0a35f200fb1bfe668a6cc702655967c",
+    "coverage_fraction": 1.0
+  }
+}

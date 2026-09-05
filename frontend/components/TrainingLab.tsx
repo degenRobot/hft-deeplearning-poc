@@ -47,7 +47,7 @@ function InputWindow({
                   <span
                     title={dataset?.feature_names ? label : FEATURE_HELP[row]}
                   >
-                    {label}
+                    {label.replaceAll("_", " ")}
                   </span>
                   <div>
                     {step.features.map((frame, column) => (
@@ -453,9 +453,12 @@ export function TrainingLab() {
             validate order-book strategies, and this model is not compatible
             with the live terminal.
           </p>
-          {data?.dataset?.limitations?.map((limitation, index) => (
-            <p key={index}>{limitation}</p>
-          ))}
+          <details>
+            <summary>Data assumptions</summary>
+            {data?.dataset?.limitations?.map((limitation, index) => (
+              <p key={index}>{limitation}</p>
+            ))}
+          </details>
         </aside>
       )}
       {data?.error && (

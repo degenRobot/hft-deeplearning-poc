@@ -75,6 +75,14 @@ establish generalization. The adapted model can underperform a simple baseline.
 
 ## Historical data by pair and UTC range
 
+The [verified historical example](../artifacts/training-example/historical-validation.json)
+fetched 3,600 ETHUSDT candles for September 1, 2026, 00:00–01:00 UTC in about
+four seconds. Local training completed 17 updates; Modal completed 122 updates
+on the same input hash. A separate SOLUSDT CLI fetch returned 600 candles.
+Both downloads had complete one-second coverage. The ETH holdout varied, but
+the trade-flow baseline beat both trained models; this is still an educational
+example, not evidence of trading performance.
+
 The Training Lab defaults to **Historical candles**. Select BTCUSDT, ETHUSDT,
 SOLUSDT, BNBUSDT, XRPUSDT or DOGEUSDT, enter a UTC start/end time, and fetch
 10 minutes to five hours of one-second spot candles. The end is exclusive.

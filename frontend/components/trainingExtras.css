@@ -8,3 +8,5 @@
 
 .training-capture-controls select {background:#0c1217;color:#dbe5e9;border:1px solid #314048;padding:10px;width:100%;min-width:0}.training-capture-controls label:has(input[type="datetime-local"]){max-width:240px}.training-mode-banner{border:1px solid #7b7047;background:#29261b;padding:18px 22px;margin:18px 0}.training-mode-banner strong{color:#e6cf8c}.training-mode-banner p{font-size:12px;line-height:1.7;color:#c2baa4;margin:8px 0}
 @media(max-width:600px){.training-capture-controls label:has(input[type="datetime-local"]){max-width:none}}
+
+.training-lab .heat-row>span {min-width:0;overflow-wrap:anywhere;line-height:1.35}.training-mode-banner summary{font-size:11px;color:#c2baa4;cursor:pointer}
