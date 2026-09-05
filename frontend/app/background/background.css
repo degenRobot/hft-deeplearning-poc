@@ -1,0 +1,395 @@
+.background-page {
+  max-width: 1160px;
+  padding-top: 24px;
+  padding-bottom: 40px;
+}
+.background-header,
+.background-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.background-header {
+  justify-content: space-between;
+}
+.background-brand {
+  color: var(--ink);
+  font: 600 12px var(--mono);
+  text-decoration: none;
+}
+.background-page a {
+  text-underline-offset: 4px;
+}
+.background-page a:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 5px;
+}
+.background-hero {
+  max-width: 850px;
+  padding: 84px 0 64px;
+}
+.background-kicker {
+  margin: 0 0 16px;
+  color: var(--teal);
+  font: 10px/1.5 var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.background-hero h1 {
+  max-width: none;
+  margin: 0 0 26px;
+  font: 500 clamp(46px, 7.5vw, 84px) / 1.03 var(--sans);
+  letter-spacing: -0.065em;
+}
+.background-lede {
+  max-width: 690px;
+  font: 18px/1.65 var(--sans);
+  color: var(--ink);
+}
+.background-intent {
+  max-width: 680px;
+  color: var(--muted);
+  font: 12px/1.8 var(--mono);
+  margin: 22px 0 30px;
+}
+.background-links {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 18px 28px;
+}
+.background-links a {
+  color: var(--teal);
+  font: 12px/1.5 var(--mono);
+  text-decoration: none;
+}
+.background-links a:hover {
+  text-decoration: underline;
+}
+.background-links .background-primary {
+  padding: 13px 16px;
+  border: 1px solid var(--teal);
+  border-radius: 4px;
+  background: var(--teal-soft);
+}
+.background-section {
+  padding: 42px 0;
+  border-top: 1px solid var(--line);
+}
+.background-section-heading {
+  max-width: 750px;
+  margin-bottom: 28px;
+}
+.background-page h2 {
+  max-width: none;
+  margin: 0 0 16px;
+  font: 500 clamp(25px, 3.2vw, 35px) / 1.2 var(--sans);
+  letter-spacing: -0.04em;
+}
+.background-section-heading > p:last-child:not(.background-kicker) {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.8;
+  margin-bottom: 0;
+}
+.background-diagram {
+  margin: 0;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+}
+.background-controller {
+  display: grid;
+  gap: 9px;
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 22px;
+  border: 1px solid var(--violet);
+  background: var(--violet-soft);
+  border-radius: 4px;
+  text-align: center;
+}
+.background-controller .background-kicker {
+  color: var(--violet);
+  margin: 0;
+}
+.background-controller strong {
+  font: 500 13px/1.7 var(--mono);
+}
+.background-controller > span:last-child {
+  font: 10px/1.7 var(--mono);
+  color: var(--muted);
+}
+.background-control-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin: 12px 0 20px;
+  color: var(--violet);
+  font: 10px/1.5 var(--mono);
+}
+.background-control-link > span {
+  font-size: 23px;
+}
+.background-route {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  gap: 20px;
+}
+.background-route li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 15px 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+}
+.background-route li:not(:last-child)::after {
+  content: "→";
+  position: absolute;
+  left: calc(100% + 4px);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font: 14px var(--mono);
+}
+.background-route li > span {
+  color: var(--muted);
+  font: 9px var(--mono);
+}
+.background-route strong {
+  font: 500 12px/1.5 var(--mono);
+}
+.background-route small {
+  color: var(--muted);
+  font: 10px/1.7 var(--mono);
+}
+.background-route .background-mixer {
+  border-color: var(--violet);
+}
+.background-route li:last-child {
+  border-color: var(--teal);
+}
+.background-diagram figcaption {
+  margin: 22px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.8;
+  max-width: 900px;
+}
+.background-experts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  margin-top: 28px;
+}
+.background-expert {
+  padding-top: 15px;
+  border-top: 2px solid var(--teal);
+}
+.background-expert.flow {
+  border-color: var(--violet);
+}
+.background-expert.reversion {
+  border-color: var(--orange);
+}
+.background-page h3 {
+  font: 500 16px/1.4 var(--sans);
+  letter-spacing: -0.02em;
+  margin: 0 0 10px;
+}
+.background-expert p {
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--muted);
+  margin: 0;
+}
+.background-learning-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.background-card {
+  padding: 25px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+}
+.background-tag {
+  display: block;
+  margin-bottom: 20px;
+  font: 10px var(--mono);
+  color: var(--violet);
+}
+.background-card h3 {
+  font-size: 20px;
+}
+.background-card p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.8;
+  margin: 13px 0 0;
+}
+.background-boundary {
+  margin: 0 0 42px;
+  padding: 28px;
+  border-left: 2px solid var(--orange);
+  background: var(--paper);
+}
+.background-boundary .background-kicker {
+  color: var(--orange);
+}
+.background-boundary h2 {
+  font-size: 25px;
+}
+.background-boundary > p:last-child {
+  max-width: 900px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.9;
+  margin-bottom: 0;
+}
+.background-questions {
+  list-style: none;
+  counter-reset: question;
+  padding: 0;
+  margin: 0;
+}
+.background-questions li {
+  counter-increment: question;
+  display: grid;
+  grid-template-columns: 28px minmax(180px, 0.9fr) minmax(0, 1.5fr);
+  gap: 20px;
+  padding: 24px 0;
+  border-top: 1px solid var(--line);
+}
+.background-questions li::before {
+  content: "0" counter(question);
+  font: 10px/2 var(--mono);
+  color: var(--muted);
+}
+.background-questions h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.background-questions p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.8;
+  margin: 0;
+}
+.background-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+.background-footer > span {
+  color: var(--muted);
+  font: 11px/1.8 var(--mono);
+}
+@media (max-width: 850px) {
+  .background-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 22px;
+  }
+  .background-hero {
+    padding-top: 60px;
+  }
+  .background-diagram {
+    padding: 20px;
+  }
+  .background-route {
+    gap: 16px;
+  }
+  .background-route li {
+    padding: 12px 8px;
+  }
+  .background-route strong {
+    font-size: 10px;
+  }
+  .background-route li:not(:last-child)::after {
+    left: calc(100% + 2px);
+    font-size: 12px;
+  }
+}
+@media (max-width: 600px) {
+  .background-page {
+    padding: 20px 18px 32px;
+  }
+  .background-hero {
+    padding: 48px 0;
+  }
+  .background-lede {
+    font-size: 16px;
+  }
+  .background-intent {
+    font-size: 11px;
+  }
+  .background-section {
+    padding: 32px 0;
+  }
+  .background-diagram {
+    padding: 16px;
+  }
+  .background-controller {
+    padding: 16px;
+  }
+  .background-controller strong {
+    font-size: 12px;
+  }
+  .background-route {
+    grid-template-columns: 1fr;
+    gap: 23px;
+  }
+  .background-route li {
+    display: grid;
+    grid-template-columns: 22px 1fr 1fr;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 12px;
+  }
+  .background-route strong {
+    font-size: 12px;
+  }
+  .background-route li:not(:last-child)::after {
+    content: "↓";
+    left: 50%;
+    top: calc(100% + 5px);
+    transform: translateX(-50%);
+    font-size: 13px;
+  }
+  .background-experts,
+  .background-learning-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .background-experts {
+    margin-top: 24px;
+  }
+  .background-card,
+  .background-boundary {
+    padding: 22px;
+  }
+  .background-boundary {
+    margin-bottom: 32px;
+  }
+  .background-questions li {
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 8px 12px;
+    padding: 22px 0;
+  }
+  .background-questions p {
+    grid-column: 2;
+  }
+}
