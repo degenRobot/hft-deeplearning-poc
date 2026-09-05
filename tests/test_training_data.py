@@ -249,12 +249,6 @@ def test_stop_during_validation_keeps_lock_and_previous_selection(tmp_path, monk
     clock = [0.0]
     monkeypatch.setattr(data, "time", SimpleNamespace(monotonic=lambda: clock[0]))
 
-    def record_write(path, state):
-        writes.append((state["capture"]["status"], state["capture"].get("progress")))
-        original_write(path, state)
-
-    monkeypatch.setattr(data, "_write_state", record_write)
-
     async def recorder(output, *args, **kwargs):
         fixture_recording(output, 650)
         return {"stop_reason": "deadline"}
@@ -262,6 +256,24 @@ def test_stop_during_validation_keeps_lock_and_previous_selection(tmp_path, monk
     async def scenario():
         entered = asyncio.Event()
         loop = asyncio.get_running_loop()
+        published = asyncio.Queue()
+
+        def record_write(path, state):
+            capture = state["capture"]
+            writes.append((capture["status"], capture.get("progress")))
+            original_write(path, state)
+            loop.call_soon_threadsafe(published.put_nowait, dict(capture))
+
+        monkeypatch.setattr(data, "_write_state", record_write)
+
+        async def validation_heartbeat():
+            # Observe a completed write instead of assuming the OS schedules the
+            # heartbeat thread within a fixed number of milliseconds.
+            async with asyncio.timeout(2):
+                while True:
+                    capture = await published.get()
+                    if capture["status"] == "validating" and capture["progress"] == 0.99:
+                        return capture
 
         def inspect(*args):
             clock[0] = 60.0  # Deadline passed; validation must still stay below 100%.
@@ -278,12 +290,10 @@ def test_stop_during_validation_keeps_lock_and_previous_selection(tmp_path, monk
         )
         try:
             await asyncio.wait_for(entered.wait(), timeout=2)
-            await asyncio.sleep(0.02)
-            first = service.snapshot()["capture"]
-            assert first["status"] == "validating"
-            assert first["progress"] == 0.99
-            await asyncio.sleep(0.02)
-            assert service.snapshot()["capture"]["updated_at"] != first["updated_at"]
+            first = await validation_heartbeat()
+            second = await validation_heartbeat()
+            assert second["updated_at"] != first["updated_at"]
+            assert service.snapshot()["capture"]["progress"] == 0.99
             task.cancel()
             await asyncio.sleep(0.01)
             task.cancel()  # Repeated Stop must also drain the same validator.
