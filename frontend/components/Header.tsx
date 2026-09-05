@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SiteNav } from "./SiteNav";
 import type { ConnectionStatus, FeedSource } from "../lib/types";
 
 export function ConnectionPill({ status }: { status: ConnectionStatus }) {
@@ -42,17 +43,19 @@ export function Header({
   return (
     <>
       <header className="topbar">
-        <div className="brand">
+        <Link
+          className="brand brand-home"
+          href="/"
+          aria-label="Market Gate Lab home"
+        >
           <span className="brand-mark">MG</span>
           <div>
-            <h1>Market Gate Lab</h1>
-            <span className="brand-caption">Two-speed model terminal</span>
+            <h1>Live Terminal</h1>
+            <span className="brand-caption">Market Gate Lab</span>
           </div>
-        </div>
+        </Link>
         <div className="topbar-actions">
-          <Link className="terminal-nav" href="/training">
-            Training lab ↗
-          </Link>
+          <SiteNav current="terminal" />
           <ConnectionPill status={status} />
           <span className="read-only">READ ONLY</span>
           <button className="button ghost" onClick={onReconnect}>

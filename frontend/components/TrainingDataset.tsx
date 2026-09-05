@@ -179,73 +179,8 @@ export function TrainingDataset() {
   return (
     <section className="training-dataset" aria-label="Public training dataset">
       <span className="flow-kicker">01 / TRAINING DATA</span>
-      <h2>Choose your data.</h2>
+      <h2>Prepare the data</h2>
       <p>Free Binance candles or a live capture. No API key needed.</p>
-      {selected && (
-        <>
-          <div className="dataset-facts">
-            <span>
-              <strong>{selected.event_count.toLocaleString()}</strong>
-              {historical ? "candles" : "public events"}
-            </span>
-            {historical ? (
-              <span>
-                <strong>1 second</strong>OHLCV candle interval
-              </span>
-            ) : (
-              <>
-                <span>
-                  <strong>{selected.book_count.toLocaleString()}</strong>book
-                  updates
-                </span>
-                <span>
-                  <strong>{selected.trade_count.toLocaleString()}</strong>
-                  aggregate trades
-                </span>
-              </>
-            )}
-            <span>
-              <strong>{(selected.bytes / 1e6).toFixed(2)} MB</strong>
-              {selected.training_ready
-                ? "Ready for training"
-                : "Needs more contiguous data"}
-            </span>
-          </div>
-          <p>
-            {selected.label} · {selected.symbol}
-            <br />
-            {time(selected.first_event_ts_ms)} →{" "}
-            {time(selected.last_event_ts_ms)}
-          </p>
-          <p>
-            {historical
-              ? "Candle proxies only: this dataset cannot validate order-book strategies."
-              : `${selected.symbol} recorded books and trades.`}
-          </p>
-          {selected.error && <p role="status">{selected.error}</p>}
-          <details>
-            <summary>Source, features and fingerprint</summary>
-            <p>
-              {historical
-                ? "Historical OHLCV, taker-buy volume and trade counts support close-price, flow and reversion proxies. Spread, book imbalance, microprice and quote updates are unavailable and zero-filled."
-                : "Live captures retain at most one book update per 100 ms and every aggregate trade within the capture limits."}{" "}
-              Training uses 30-frame windows and a delayed 5-second target.
-            </p>
-            <p>
-              {selected.path}
-              <br />
-              SHA-256: {selected.sha256 ?? "Unavailable"}
-            </p>
-            <a
-              href="https://github.com/binance/binance-spot-api-docs/blob/master/faqs/market_data_only.md"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Binance public market-data documentation ↗
-            </a>
-          </details>
-        </>
-      )}
       <div className="training-capture-controls">
         <label>
           Data acquisition
@@ -365,6 +300,79 @@ export function TrainingDataset() {
             : "Enter a whole duration from 30 to 1,800 seconds."}
         </p>
       )}
+      <div className="training-selected-data">
+        <h3>Selected dataset</h3>
+        {!selected && (
+          <p>
+            The backend will report the dataset available for your next run.
+          </p>
+        )}
+        {selected && (
+          <>
+            <div className="dataset-facts">
+              <span>
+                <strong>{selected.event_count.toLocaleString()}</strong>
+                {historical ? "candles" : "public events"}
+              </span>
+              {historical ? (
+                <span>
+                  <strong>1 second</strong>OHLCV candle interval
+                </span>
+              ) : (
+                <>
+                  <span>
+                    <strong>{selected.book_count.toLocaleString()}</strong>book
+                    updates
+                  </span>
+                  <span>
+                    <strong>{selected.trade_count.toLocaleString()}</strong>
+                    aggregate trades
+                  </span>
+                </>
+              )}
+              <span>
+                <strong>{(selected.bytes / 1e6).toFixed(2)} MB</strong>
+                {selected.training_ready
+                  ? "Ready for training"
+                  : "Needs more contiguous data"}
+              </span>
+            </div>
+            <p>
+              {selected.label} · {selected.symbol}
+              <br />
+              {time(selected.first_event_ts_ms)} →{" "}
+              {time(selected.last_event_ts_ms)}
+            </p>
+            <p>
+              {historical
+                ? "Candle proxies only: this dataset cannot validate order-book strategies."
+                : `${selected.symbol} recorded books and trades.`}
+            </p>
+            {selected.error && <p role="status">{selected.error}</p>}
+            <details>
+              <summary>Source, features and fingerprint</summary>
+              <p>
+                {historical
+                  ? "Historical OHLCV, taker-buy volume and trade counts support close-price, flow and reversion proxies. Spread, book imbalance, microprice and quote updates are unavailable and zero-filled."
+                  : "Live captures retain at most one book update per 100 ms and every aggregate trade within the capture limits."}{" "}
+                Training uses 30-frame windows and a delayed 5-second target.
+              </p>
+              <p>
+                {selected.path}
+                <br />
+                SHA-256: {selected.sha256 ?? "Unavailable"}
+              </p>
+              <a
+                href="https://github.com/binance/binance-spot-api-docs/blob/master/faqs/market_data_only.md"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Binance public market-data documentation ↗
+              </a>
+            </details>
+          </>
+        )}
+      </div>
       <details>
         <summary>How data is prepared</summary>
         <p className="flow-footnote">
