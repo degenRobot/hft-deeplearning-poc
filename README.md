@@ -51,6 +51,35 @@ neural, uniform, and static weighting modes. Presets change only the local draft
 The backend also exposes `GET /health`, `GET/PATCH /config`, `POST /reset`, `GET /ledger`,
 `GET /training`, and `WS /ws/market` on <http://localhost:8000>.
 
+## Read the visual flow
+
+The dark terminal starts with model control: the last causal 30 × 10 feature window,
+all 64 and 32 hidden ReLU activations, then proposed versus applied expert weights.
+The activation values come from the same forward pass as those weights. Brightness
+uses `log1p(value) / log1p(layer maximum)` within each layer and pass; zero stays dim.
+The drawn lines show layer flow, not individual connection strengths. This is inference,
+not live retraining. Baseline policies bypass the activation display.
+
+The matching expert colors continue into the fast path: actual scores, weighted
+contributions and the deterministic risk check before a synthetic quote. Input
+explanations and exact neuron values are available in expandable inspectors.
+
+The market view pairs the event tape with one-second **trade-price** OHLC candles and
+traded volume. Candles aggregate every accepted trade before UI sampling, using the
+local receive clock on Binance and the shifted fixture clock on replay. Empty seconds
+remain gaps. The latest candle may still be forming; history starts with the current
+run. The 30/60/90-second controls change the visible window, not candle duration.
+
+Telemetry is bounded to 48 recent decision-producing events, 30 feature frames,
+96 hidden activations and 90 observed candle buckets. The tape shows the latest 12
+retained events and can filter to trades. WebSocket snapshots arrive every 100 ms;
+the event pace reflects only the retained window, not total exchange throughput.
+Pulses indicate observed updates, not measured inference or transport latency.
+
+`Reduce motion` stops animation while values keep updating. Keyboard and touch users
+can inspect candles and neurons through native selectors. Stale or disconnected
+snapshots clear the charts and quote, and new runs reset observation buffers.
+
 ## Understand the training artifacts
 
 The active dashboard gate loads `models/gate-demo.npz`. The dashboard's **original v1 offline

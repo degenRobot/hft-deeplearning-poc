@@ -57,8 +57,11 @@ class NumpyMLPGate:
         ):
             raise ValueError("unsupported gate artifact schema or dimensions")
         self.model_version = self.path.stem
+        self.last_activations: dict[str, list[float]] | None = None
 
-    def predict(self, window: Sequence[Sequence[float]]) -> dict[str, float]:
+    def predict(
+        self, window: Sequence[Sequence[float]], *, capture_activations: bool = False
+    ) -> dict[str, float]:
         flat = np.asarray(window, dtype=np.float32).reshape(-1)
         if flat.size != 300:
             raise ValueError("gate requires a causal 30 x 10 feature window")
@@ -66,7 +69,14 @@ class NumpyMLPGate:
         hidden_2 = np.maximum(hidden_1 @ self.w2 + self.b2, 0)
         logits = hidden_2 @ self.w3 + self.b3
         logits -= logits.max()
-        return normalize(np.exp(np.clip(logits, -50, 50)))
+        weights = normalize(np.exp(np.clip(logits, -50, 50)))
+        # Capture this exact forward pass, without changing inference arithmetic.
+        self.last_activations = (
+            {"hidden_1": hidden_1.tolist(), "hidden_2": hidden_2.tolist()}
+            if capture_activations
+            else None
+        )
+        return weights
 
 
 def load_numpy_gate(model_path: str | Path | None) -> NumpyMLPGate | None:

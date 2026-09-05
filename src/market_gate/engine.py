@@ -19,6 +19,14 @@ class MarketEngine:
         self.gate = load_numpy_gate(model_path)
         self.features = FeatureBuilder()
         self.frames: deque[tuple[float, ...]] = deque(maxlen=30)
+        # Bounded observation only: these buffers never feed trading decisions.
+        self.frame_times: deque[int] = deque(maxlen=30)
+        self.visual_events: deque[dict[str, object]] = deque(maxlen=48)
+        self.gate_window: list[dict[str, object]] = []
+        self.gate_activations: dict[str, list[float]] | None = None
+        self.candles: deque[dict[str, float | int]] = deque(maxlen=90)
+        self.proposed_weights = uniform_weights()
+        self.weights_before_refresh = uniform_weights()
         self.ledger: deque[dict[str, object]] = deque(maxlen=300)
         self.bid = self.ask = self.bid_size = self.ask_size = 0.0
         self.last_trade: float | None = None
@@ -84,6 +92,29 @@ class MarketEngine:
             )
             if frame is not None:
                 self.frames.append(frame.values)
+                self.frame_times.append(frame.close_ts_ms)
+        # Observe validated market prices independently of the decision/UI sampling rate.
+        # OHLC uses actual trades only; empty seconds remain gaps.
+        if isinstance(event, TradeEvent) and isfinite(event.price) and event.price > 0:
+            if isfinite(event.size) and event.size >= 0:
+                bucket = (sequence_ts_ms // 1000) * 1000
+                if not self.candles or self.candles[-1]["timestamp_ms"] != bucket:
+                    self.candles.append(
+                        {
+                            "timestamp_ms": bucket,
+                            "open": event.price,
+                            "high": event.price,
+                            "low": event.price,
+                            "close": event.price,
+                            "volume": event.size,
+                        }
+                    )
+                else:
+                    candle = self.candles[-1]
+                    candle["high"] = max(candle["high"], event.price)
+                    candle["low"] = min(candle["low"], event.price)
+                    candle["close"] = event.price
+                    candle["volume"] += event.size
         self.venue = event.venue
         self.last_ts_ms = sequence_ts_ms
         self.last_receive_ts_ms = max(self.last_receive_ts_ms, arrival_ts_ms)
@@ -167,6 +198,20 @@ class MarketEngine:
         self.ledger.append(self.decision.as_dict())
         self.prior_quote = outcome.quote
         self.prior_quote_created_ms = arrival_ts_ms
+        self.visual_events.append(
+            {
+                "id": self.events_processed,
+                "timestamp_ms": sequence_ts_ms,
+                "kind": "book" if isinstance(event, BookEvent) else event.aggressor,
+                "price": mid if isinstance(event, BookEvent) else event.price,
+                "size": event.bid_size + event.ask_size
+                if isinstance(event, BookEvent)
+                else event.size,
+                "scores": [scores[key] for key in EXPERT_IDS],
+                "signal": signal,
+                "gate_revision": self.gate_revision,
+            }
+        )
         return self.decision
 
     def _book_age(self, now_ms: int) -> int:
@@ -180,6 +225,12 @@ class MarketEngine:
     def _refresh_weights(self, timestamp_ms: int) -> None:
         self.last_gate_ts_ms = timestamp_ms
         self.gate_revision += 1
+        self.gate_activations = None
+        self.weights_before_refresh = self.weights.copy()
+        self.gate_window = [
+            {"timestamp_ms": ts, "values": list(values)}
+            for ts, values in zip(self.frame_times, self.frames, strict=True)
+        ]
         if self.config.gate_mode == "uniform":
             proposed = uniform_weights()
             self.effective_gate_mode = "uniform"
@@ -191,8 +242,10 @@ class MarketEngine:
             self.effective_gate_mode = "uniform-fallback"
         else:
             padded = [(0.0,) * 10] * max(0, 30 - len(self.frames)) + list(self.frames)
-            proposed = self.gate.predict(padded)
+            proposed = self.gate.predict(padded, capture_activations=True)
+            self.gate_activations = self.gate.last_activations
             self.effective_gate_mode = "neural"
+        self.proposed_weights = proposed.copy()
         self.weights = blend_and_smooth(proposed, self.weights, self.config.higher_level_influence)
 
     def snapshot(self, now_ms: int | None = None) -> dict[str, object]:
@@ -261,6 +314,17 @@ class MarketEngine:
                 }
                 for key in EXPERT_IDS
             ],
+            "visual": {
+                "events": list(self.visual_events) if ready else [],
+                "candles": [dict(c) for c in self.candles] if ready else [],
+                "activations": self.gate_activations if ready else None,
+                "window": self.gate_window if ready else [],
+                "proposed": self.proposed_weights.copy(),
+                "previous": self.weights_before_refresh.copy(),
+                "influence": self.config.higher_level_influence,
+                "gate_timestamp_ms": max(0, self.last_gate_ts_ms),
+                "snapshot_interval_ms": 100,
+            },
             "quote": quote,
             "paper": {"inventory": self.paper.inventory, "pnl": self.paper.pnl},
             "health": {
