@@ -1,4 +1,6 @@
 .shell > .topbar {
+  flex-wrap: wrap;
+  row-gap: 14px;
   position: relative;
   isolation: isolate;
   min-height: 108px;
@@ -91,5 +93,58 @@
   }
   .training-settings-body {
     padding: 10px;
+  }
+}
+
+.banner-about {
+  flex-basis: 100%;
+  min-width: 0;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.banner-about > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+  color: var(--ink);
+  font: 400 12px/1.6 var(--sans);
+}
+.banner-about > summary::-webkit-details-marker {
+  display: none;
+}
+.banner-about-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  color: var(--teal);
+  font-size: 11px;
+}
+.banner-about-toggle::after {
+  content: "+";
+  font: 400 20px/1 var(--mono);
+}
+.banner-about[open] .banner-about-toggle::after {
+  content: "−";
+}
+.banner-about-body {
+  max-width: 900px;
+  padding-top: 8px;
+}
+.banner-about-body p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font: 400 12px/1.7 var(--sans);
+}
+@media (max-width: 540px) {
+  .banner-about > summary {
+    align-items: flex-start;
+  }
+  .banner-about-toggle {
+    font-size: 0;
+    gap: 0;
   }
 }

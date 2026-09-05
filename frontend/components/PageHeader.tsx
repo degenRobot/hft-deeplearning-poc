@@ -30,6 +30,30 @@ export function PageHeader({
         <SiteNav current={current} />
         {children}
       </div>
+      <details className="banner-about">
+        <summary>
+          <span>
+            A simple demo of neural networks guiding fast market rules.
+          </span>
+          <span className="banner-about-toggle" aria-hidden="true">
+            About this demo
+          </span>
+        </summary>
+        <div className="banner-about-body">
+          <p>
+            A small neural controller reads recent market summaries and adjusts
+            the mix of three specialist rules. Those rules react to accepted
+            book and trade events, while fixed risk checks decide whether to
+            allow a synthetic quote.
+          </p>
+          <p>
+            The architecture illustrates how neural context could work alongside
+            high-resolution data and low-latency algorithms. This Python demo
+            runs both cadences in one process; it does not measure production
+            HFT speed or send exchange orders.
+          </p>
+        </div>
+      </details>
     </header>
   );
 }
