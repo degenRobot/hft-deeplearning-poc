@@ -289,6 +289,7 @@
 }
 .inference-chart li > span:first-child {
   color: var(--muted);
+  white-space: nowrap;
 }
 .inference-chart li > strong {
   font-weight: 500;
@@ -429,12 +430,12 @@
     grid-template-columns: 64px minmax(0, 1fr);
   }
   .inference-axis {
-    margin-left: 44px;
+    margin-left: 50px;
     margin-right: 77px;
     font-size: 8px;
   }
   .inference-chart li {
-    grid-template-columns: 36px minmax(0, 1fr) 69px;
+    grid-template-columns: 42px minmax(0, 1fr) 69px;
     gap: 8px;
     font-size: 10px;
   }
