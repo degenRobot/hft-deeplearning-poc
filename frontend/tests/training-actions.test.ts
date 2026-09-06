@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { TrainingLab } from "../components/TrainingLab";
+vi.mock("../components/SgdPlayground", () => ({ SgdPlayground: () => null }));
 import { useLiveTraining } from "../hooks/useLiveTraining";
 import type { LiveTraining } from "../lib/liveTraining";
 
