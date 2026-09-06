@@ -33,7 +33,7 @@ export function PageHeader({
       <details className="banner-about">
         <summary>
           <span>
-            A simple demo of neural networks guiding fast market rules.
+            A simple demo of neural models guiding fast market algorithms.
           </span>
           <span className="banner-about-toggle" aria-hidden="true">
             About this demo
@@ -41,16 +41,15 @@ export function PageHeader({
         </summary>
         <div className="banner-about-body">
           <p>
-            A small neural controller reads recent market summaries and adjusts
-            the mix of three specialist rules. Those rules react to accepted
-            book and trade events, while fixed risk checks decide whether to
-            allow a synthetic quote.
+            An educational sketch of how deep learning could guide low-latency
+            HFT algorithms. Here, one small neural gate weights three simple
+            rules; fixed risk checks guard synthetic quotes.
           </p>
           <p>
-            The architecture illustrates how neural context could work alongside
-            high-resolution data and low-latency algorithms. This Python demo
-            runs both cadences in one process; it does not measure production
-            HFT speed or send exchange orders.
+            Weighting is only a starting point. A richer design could use larger
+            models, multiple gates and outputs for strategy selection, quote
+            size or spread. This Python demo runs in one process, sends no
+            orders and does not demonstrate production HFT latency.
           </p>
         </div>
       </details>

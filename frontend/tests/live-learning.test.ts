@@ -15,6 +15,7 @@ import {
   type LearningStatus,
 } from "../components/LiveLearning";
 import { TrainingLab } from "../components/TrainingLab";
+vi.mock("../components/SgdPlayground", () => ({ SgdPlayground: () => null }));
 import { useLiveTraining } from "../hooks/useLiveTraining";
 import type { LiveTraining } from "../lib/liveTraining";
 

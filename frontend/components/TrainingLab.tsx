@@ -4,6 +4,7 @@ import { LiveLearningPanel, useLiveLearning } from "./LiveLearning";
 import { TrainingProgress } from "./TrainingProgress";
 import { TrainingDataset } from "./TrainingDataset";
 import { PageHeader } from "./PageHeader";
+import { SgdPlayground } from "./SgdPlayground";
 import { TrainingControls } from "./TrainingControls";
 import { useLiveTraining } from "../hooks/useLiveTraining";
 import { trainingCanStop } from "../lib/liveTraining";
@@ -132,6 +133,9 @@ export function TrainingLab() {
             >
               Open Training Settings
             </button>
+            <a className="button ghost" href="#sgd-playground">
+              Try SGD
+            </a>
             {!continuous && trainingCanStop(data) && (
               <button
                 type="button"
@@ -296,6 +300,7 @@ export function TrainingLab() {
           </details>
         )}
       </section>
+      <SgdPlayground />
       <details className="training-settings" ref={settingsRef}>
         <summary>
           <strong>Training Settings</strong>

@@ -289,9 +289,9 @@ export function SignalFlow({
           <h2 className="heading-with-tip">
             Three hand-coded experts{" "}
             <ContextTip label="Can there be more experts?">
-              Three fixed rules keep this demo easy to follow. The pattern can
-              extend to N independent rules or models, each with its own inputs
-              and latency budget. This implementation supports these three.
+              Simple examples for this demo. A larger neural model could weight
+              decisions from N specialist HFT algorithms, each with its own
+              latency budget. Here, only these three rules feed the mix.
             </ContextTip>
           </h2>
           <p className="flow-footnote">
@@ -346,8 +346,7 @@ export function SignalFlow({
             })}
           </div>
           <p className="flow-footnote">
-            Positive scores mean buy bias; negative scores mean sell bias.
-            Magnitude is signal strength, not calibrated confidence.
+            − sell bias · + buy bias · strength, not calibrated confidence.
           </p>
           {visual?.neural_expert && (
             <div className="neural-shadow-card">
@@ -355,7 +354,15 @@ export function SignalFlow({
                 TRAINED MODEL / EXPERIMENTAL SHADOW
               </span>
               <div className="neural-shadow-title">
-                <h3>Tiny neural expert</h3>
+                <h3 className="heading-with-tip">
+                  Tiny neural expert{" "}
+                  <ContextTip label="What does the shadow model do?">
+                    A learned combination of the three rule scores. Its output
+                    is excluded from the expert allocation, mixed signal and
+                    synthetic quote. The local forward-pass timing excludes
+                    market and network latency.
+                  </ContextTip>
+                </h3>
                 <strong
                   className={
                     visual.neural_expert.score < 0
@@ -367,10 +374,8 @@ export function SignalFlow({
                 </strong>
               </div>
               <p className="flow-footnote">
-                {signalDirection(visual.neural_expert.score)} from a learned
-                combination of the three rule scores, running alongside them.
-                Its output is excluded from the expert allocation, mixed signal
-                and synthetic quote.
+                {signalDirection(visual.neural_expert.score)} · shadow only,
+                excluded from the quote mix.
               </p>
               <div className="neural-shadow-metadata">
                 <span>
@@ -389,9 +394,7 @@ export function SignalFlow({
                   .join(" · ")}
               </div>
               <p className="flow-footnote">
-                3 rule scores → 8 tanh neurons → 1 direction score. Timing
-                measures the local forward pass, excluding market and network
-                latency.{" "}
+                3 inputs → 8 neurons → 1 score ·{" "}
                 <a
                   href="https://github.com/degenRobot/hft-deeplearning-poc/blob/main/scripts/train_tiny_expert.py"
                   target="_blank"
@@ -509,7 +512,14 @@ export function SignalFlow({
       <div className="signal-lane">
         <article className="flow-card mix-card">
           <span className="flow-kicker">SIGNAL / RISK</span>
-          <h2>One quote signal</h2>
+          <h2 className="heading-with-tip">
+            One quote signal{" "}
+            <ContextTip label="Could the model control more than direction?">
+              This demo uses one weighted directional signal. A richer design
+              could use multiple gates for strategy selection, quote size and
+              spread, with every output subject to fixed risk limits.
+            </ContextTip>
+          </h2>
           <div
             className={`mixed-number ${total < 0 ? "negative" : "positive"}`}
           >
