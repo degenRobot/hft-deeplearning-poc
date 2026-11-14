@@ -15,8 +15,18 @@ def main() -> int:
     args = parser.parse_args()
     replay_path = args.artifact_dir / "replay.json"
     summary_path = args.artifact_dir / "summary.json"
+    replay = json.loads(replay_path.read_text())
+    summary = json.loads(summary_path.read_text()) if summary_path.exists() else {}
+    if summary.get("schema_version") != 2:
+        parser.error("unsupported or missing summary schema: only v2 replay artifacts are supported")
+    rows = replay.get("steps", [])
+    if not rows or any(not row.get("walls") or "pellets" not in row or "predator" not in row for row in rows):
+        parser.error("invalid v2 replay: each step requires walls, pellets, and predator")
+    grid = len(rows[0]["walls"])
+    if any(len(row["walls"]) != grid or any(len(col) != grid for col in row["walls"]) for row in rows):
+        parser.error("invalid v2 replay: walls must be consistent square grids")
     records = []
-    for row in json.loads(replay_path.read_text())["steps"]:
+    for row in rows:
         records.append(
             StepRecord(
                 t=row["t"],
@@ -27,13 +37,12 @@ def main() -> int:
                 reward=row["reward"],
                 expert_cf=row["expert_cf"],
                 features=[],
-                walls=row.get("walls", []),
-                pellets=row.get("pellets", []),
-                predator=row.get("predator"),
+                walls=row["walls"],
+                pellets=row["pellets"],
+                predator=row["predator"],
             )
         )
-    summary = json.loads(summary_path.read_text()) if summary_path.exists() else {}
-    write_replay_html(args.artifact_dir / "replay.html", records, ArenaConfig(), summary)
+    write_replay_html(args.artifact_dir / "replay.html", records, ArenaConfig(grid=grid), summary)
     print("wrote", args.artifact_dir / "replay.html")
     return 0
 

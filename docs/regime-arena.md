@@ -1,29 +1,27 @@
 # Regime Arena (synthetic toy)
 
-CPU-only demonstration of the Market Gate **pattern**. **v2** is revised exploratory measurement after independent review; v1 artifacts at `artifacts/regime-arena` are superseded for interpretation but preserved on disk.
+CPU-only demonstration of the Market Gate **pattern**. v2 is exploratory measurement after independent review; the first version's holdout and regime coverage were invalid. This is not evidence about trading or robotics.
 
-## v2 evaluation (frozen before run)
+## v2 evaluation
 
-**Eval world IDs:** integers `2_000_000 + eval_seed * 100 + episode` for `eval_seeds=(2001, 2099)` and `episode in 0..eval_episodes-1`. **Train world IDs:** `1_000_000 + train_seed * 100 + episode` for `train_seeds=(1007, 1017, 1027)`. Sets are asserted disjoint by construction.
+Train and evaluation worlds use separate namespaces and are asserted disjoint. Every episode includes all three regimes. A descriptive threshold records whether learned mean reward exceeds uniform and static; a true boolean is not evidence of meaningful adaptation.
 
-**Hypothesis (descriptive only):** on held-out worlds with all three regimes present each episode, a tiny gate trained on train IDs alone may exceed uniform and static on mean pellet reward per step.
+**Fixture gate:** on training worlds, each expert must show positive mean counterfactual advantage over the experts' mean in at least one regime, and all regimes must be present. If any expert lacks this advantage, `fixture_valid` is false and the gate results must not be interpreted as adaptation. This is a minimal diagnostic, not proof that a regime-switch task is informative or that an expert is optimal long term.
 
-**Literal threshold (not “robust success”):** `learned_mean > uniform_mean` and `learned_mean > static_mean` on the frozen eval IDs. This boolean does not imply meaningful effect size, valid fixture, or trading/robotics utility.
-
-**Stop:** complete train+eval batch, or global simulated transition budget (including counterfactual rollouts), or 90s wall clock per CLI invocation, or non-finite weights.
-
-**Fixture gate:** before interpreting the learned gate, a diagnostic must show each expert has positive mean counterfactual advantage in at least one regime on train worlds (one-hot execution path). If not, mark `fixture_invalid` and do not claim adaptation.
+**Stops:** complete the batch, exceed the simulated transition cap (including counterfactual transitions), encounter non-finite weights or gradients, or reach 90 seconds. The wall-clock check is cooperative at rollout steps and between training epochs; it cannot preempt an individual training epoch or NumPy operation. Budget checks can also overshoot by a transition before raising.
 
 ## Baselines
 
-Uniform, each expert (one-hot via `blend_move`), static blend fit on **the same train episodes** as collection, softmax exponential adaptive baseline, learned gate. Oracle/regime-labeled policy is optional debug only — **not** an upper bound.
+Uniform, each one-hot expert, a static heuristic, causal softmax exponential adaptive baseline, and a learned gate. Static weights are softmaxed sums of immediate counterfactual returns along **uniform-policy** trajectories on the same training world IDs. The supervised collection uses a 50/50 uniform/static blend and may visit different states. The static procedure does not optimize full-episode return. The adaptive baseline observes each expert's one-step counterfactual reward, which gives it information beyond the gate's observation history at inference. The regime-labeled debug comparator is not an upper bound.
 
 ## Run
 
+Install the repository's existing dependencies in your chosen environment, then from the repository root:
+
 ```sh
-cd /Users/msmart/CodexWorktrees/idea-factory-20261114-hft
-PYTHONPATH=src /Users/msmart/local-model-gym/.venv/bin/python -m market_gate.regime_arena \
-  --output-dir /Users/msmart/.local/state/idea-factory/run-20261114/artifacts/regime-arena-v2
+PYTHONPATH=src python -m unittest tests.test_regime_arena -v
+PYTHONPATH=src python -m market_gate.regime_arena --output-dir /tmp/regime-arena-v2
+PYTHONPATH=src python scripts/render_regime_arena.py /tmp/regime-arena-v2
 ```
 
-Artifacts stay outside Git. Use `--fast` for CI smoke (still must visit all three regimes).
+Use `--fast` for a small smoke run. The renderer accepts only v2 replay artifacts, including their v2 summary and per-step world grids. Outputs are synthetic JSON and a local replay; they are not committed by the command above.

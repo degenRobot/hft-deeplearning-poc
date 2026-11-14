@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 import numpy as np
@@ -16,12 +17,13 @@ from market_gate.regime_arena import (
     blend_move,
     build_world,
     counterfactual_rewards,
-    expert_wall,
     expert_seek,
     fast_config,
     list_eval_world_ids,
     list_train_world_ids,
     main,
+    step_world,
+    summarize_fixture_advantages,
     normalize_weights,
     policy_weights,
     uniform_weights,
@@ -49,17 +51,55 @@ class RegimeArenaTests(unittest.TestCase):
     def test_counterfactual_matches_one_hot_execution(self) -> None:
         cfg = ArenaConfig(grid=14, episode_steps=20)
         world = build_world(1_001_007, cfg)
-        budget = StepBudget(10_000)
-        cf = counterfactual_rewards(world, cfg, budget)
-        for i, name in enumerate(("expert_seek", "expert_wall", "expert_evade")):
+        world.walls.fill(0)
+        world.walls[0, :] = world.walls[-1, :] = 1
+        world.walls[:, 0] = world.walls[:, -1] = 1
+        world.agent = (5, 5)
+        world.pellets = {(6, 6)}
+        world.predator = None
+        world.walls[6, 5] = 1  # diagonal is open, axis projection is blocked
+        self.assertEqual(expert_seek(world, cfg), (1, 1))
+        self.assertEqual(blend_move(world, np.array([1., 0., 0.]), cfg), (0, 0))
+        raw_reward = step_world(world.copy(), (1, 1), cfg, StepBudget(10))
+        self.assertAlmostEqual(raw_reward, 0.99)
+        cf = counterfactual_rewards(world, cfg, StepBudget(10))
+        for i in range(3):
             trial = world.copy()
-            w = policy_weights(name, np.zeros(INPUT_DIM), None, np.full(3, 1 / 3), np.zeros(3))
-            move_policy = blend_move(trial, w, cfg)
-            trial2 = world.copy()
-            one = np.zeros(3)
-            one[i] = 1.0
-            move_cf = blend_move(trial2, one, cfg)
-            self.assertEqual(move_policy, move_cf)
+            one_hot = np.eye(3)[i]
+            move = blend_move(trial, one_hot, cfg)
+            reward = step_world(trial, move, cfg, StepBudget(10))
+            self.assertAlmostEqual(cf[i], reward)
+        self.assertAlmostEqual(cf[0], -0.01)
+
+    def test_fixture_requires_each_expert_advantage(self) -> None:
+        positive = {"open": [np.array([3., 0., 0.])],
+                    "maze": [np.array([0., 3., 0.])],
+                    "predator": [np.array([0., 0., 3.])]}
+        result = summarize_fixture_advantages(positive)
+        self.assertTrue(result["fixture_valid"])
+        self.assertTrue(all(result["expert_has_advantage"].values()))
+        # A winner in every regime is not sufficient if it is always the same expert.
+        negative = {name: [np.array([3., 0., 0.])] for name in positive}
+        result = summarize_fixture_advantages(negative)
+        self.assertFalse(result["fixture_valid"])
+        self.assertEqual(result["expert_has_advantage"], {"seek": True, "wall": False, "evade": False})
+        positive["predator"] = []
+        self.assertFalse(summarize_fixture_advantages(positive)["fixture_valid"])
+
+    def test_non_finite_values_fail_closed(self) -> None:
+        for bad in (np.nan, np.inf, -np.inf):
+            with self.subTest(value=bad), self.assertRaises(ValueError):
+                normalize_weights(np.array([0., bad, 0.]))
+        gate = TinyArenaGate(np.random.default_rng(0))
+        gate.w1[0, 0] = np.nan
+        with self.assertRaises(ValueError):
+            gate.predict(np.zeros(INPUT_DIM))
+        gate = TinyArenaGate(np.random.default_rng(0))
+        with self.assertRaises(ValueError):
+            gate.train_epoch(np.zeros((1, INPUT_DIM)), np.array([[np.nan, 0., 1.]]), .1)
+        with patch("market_gate.regime_arena.np.outer", return_value=np.array([np.inf])):
+            with self.assertRaisesRegex(ValueError, "gradient"):
+                gate.train_epoch(np.zeros((1, INPUT_DIM)), np.array([[1., 0., 0.]]), .1)
 
     def test_soft_label_uniform_on_ties(self) -> None:
         cf = np.array([0.5, 0.5, 0.5])
@@ -81,14 +121,6 @@ class RegimeArenaTests(unittest.TestCase):
         budget = StepBudget(20)
         counterfactual_rewards(world, cfg, budget)
         self.assertEqual(budget.count, 3)
-
-    def test_diagonal_seek_vs_one_hot_blend_can_differ(self) -> None:
-        cfg = ArenaConfig()
-        world = build_world(2_000_042, cfg)
-        raw_seek = expert_seek(world, cfg)
-        move = blend_move(world, np.array([1.0, 0.0, 0.0]), cfg)
-        self.assertIsInstance(raw_seek, tuple)
-        self.assertIsInstance(move, tuple)
 
     def test_deterministic_episode_world_id(self) -> None:
         from market_gate.regime_arena import run_episode

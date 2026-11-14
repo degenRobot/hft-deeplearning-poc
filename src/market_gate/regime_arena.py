@@ -36,11 +36,13 @@ PolicyName = Literal[
 
 def normalize_weights(values: np.ndarray) -> np.ndarray:
     v = np.asarray(values, dtype=np.float64)
-    v = v - v.max() if v.size else v
+    if v.shape != (3,) or not np.isfinite(v).all():
+        raise ValueError("weights/logits must be three finite values")
+    v = v - v.max()
     e = np.exp(np.clip(v, -40, 40))
     total = float(e.sum())
     if total <= 0 or not np.isfinite(total):
-        return np.full(3, 1 / 3)
+        raise ValueError("non-finite or zero weight normalization")
     return e / total
 
 
@@ -115,6 +117,8 @@ class TinyArenaGate:
         x = flat.reshape(-1).astype(np.float64)
         if x.size != INPUT_DIM:
             raise ValueError("gate expects flattened history")
+        if not np.isfinite(x).all() or not all(np.isfinite(p).all() for p in (self.w1,self.b1,self.w2,self.b2,self.w3,self.b3)):
+            raise ValueError("non-finite gate input or parameters")
         h1 = np.maximum(x @ self.w1 + self.b1, 0)
         h2 = np.maximum(h1 @ self.w2 + self.b2, 0)
         logits = h2 @ self.w3 + self.b3
@@ -129,6 +133,8 @@ class TinyArenaGate:
         loss = 0.0
         for row, target in zip(x, y_soft, strict=True):
             target = np.asarray(target, dtype=np.float64)
+            if not np.isfinite(target).all() or not np.isfinite(lr):
+                raise ValueError("non-finite target or learning rate")
             target = target / max(float(target.sum()), 1e-12)
             probs, h1, h2 = self.forward(row)
             loss += -float(np.sum(target * np.log(np.maximum(probs, 1e-12))))
@@ -143,12 +149,16 @@ class TinyArenaGate:
             gh1 *= h1 > 0
             gw1 = np.outer(row.reshape(-1), gh1)
             gb1 = gh1
+            if not all(np.isfinite(g).all() for g in (gw1, gb1, gw2, gb2, gw3, gb3)):
+                raise ValueError("non-finite gate gradient")
             self.w3 -= lr * gw3
             self.b3 -= lr * gb3
             self.w2 -= lr * gw2
             self.b2 -= lr * gb2
             self.w1 -= lr * gw1
             self.b1 -= lr * gb1
+            if not all(np.isfinite(p).all() for p in (self.w1,self.b1,self.w2,self.b2,self.w3,self.b3)):
+                raise ValueError("non-finite gate parameters after update")
         return loss / max(len(x), 1)
 
 
@@ -519,7 +529,7 @@ def rollout_train_episode(
     *,
     collect_labels: bool = True,
 ) -> tuple[list[np.ndarray], list[np.ndarray], np.ndarray]:
-    """Shared trajectory for static fitting and supervised collection."""
+    """Roll out training world IDs; static fitting and collection may take different paths."""
     world = build_world(world_id, cfg)
     history = np.zeros((HISTORY_LEN, FEATURES_PER_FRAME))
     recent: list[float] = []
@@ -606,25 +616,29 @@ def expert_regime_fixture_diagnostic(
             move = blend_move(world, uniform_weights(), cfg)
             step_world(world, move, cfg, budget)
             _ = history  # history warm-up not required for CF diagnostic
+    return summarize_fixture_advantages(by_regime)
+
+
+def summarize_fixture_advantages(by_regime: dict[str, list[np.ndarray]]) -> dict[str, object]:
+    """Require every expert to have positive mean advantage in at least one regime."""
     per_regime = {}
-    fixture_valid = True
+    per_expert = {name: False for name in EXPERT_IDS}
+    all_present = True
     for name in REGIME_NAMES:
         if not by_regime[name]:
-            fixture_valid = False
+            all_present = False
             per_regime[name] = {"mean_cf": None, "best_expert_advantage": None}
             continue
-        arr = np.stack(by_regime[name])
-        mean_cf = arr.mean(axis=0)
+        mean_cf = np.stack(by_regime[name]).mean(axis=0)
+        if mean_cf.shape != (3,) or not np.isfinite(mean_cf).all():
+            raise ValueError("non-finite or malformed fixture diagnostic")
         advantage = mean_cf - mean_cf.mean()
-        best = float(advantage.max())
-        per_regime[name] = {
-            "mean_cf": mean_cf.tolist(),
-            "expert_advantage": advantage.tolist(),
-            "best_expert_advantage": best,
-        }
-        if best < ADVANTAGE_EPS:
-            fixture_valid = False
-    return {"per_regime": per_regime, "fixture_valid": fixture_valid}
+        for i, expert in enumerate(EXPERT_IDS):
+            per_expert[expert] |= bool(advantage[i] >= ADVANTAGE_EPS)
+        per_regime[name] = {"mean_cf": mean_cf.tolist(), "expert_advantage": advantage.tolist(),
+                            "best_expert_advantage": float(advantage.max())}
+    return {"per_regime": per_regime, "expert_has_advantage": per_expert,
+            "fixture_valid": bool(all_present and all(per_expert.values()))}
 
 
 def paired_bootstrap_diff(
@@ -773,6 +787,7 @@ def write_replay_html(path: Path, records: list[StepRecord], cfg: ArenaConfig, s
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Regime Arena Replay v2</title>
 <style>
 body {{ font-family: system-ui, sans-serif; margin: 1rem; background: #111; color: #eee; }}
@@ -789,7 +804,9 @@ body {{ font-family: system-ui, sans-serif; margin: 1rem; background: #111; colo
 </head>
 <body>
 <h1>Regime Arena Replay v2</h1>
+<p id="fixture-status"></p>
 <p id="regime"></p>
+<label for="slider">Replay step</label>
 <input type="range" id="slider" min="0" max="{max(0, len(records) - 1)}" value="0" style="width: 100%"/>
 <div id="arena"></div>
 <div class="panel" id="weights"></div>
@@ -797,6 +814,7 @@ body {{ font-family: system-ui, sans-serif; margin: 1rem; background: #111; colo
 <div class="panel" id="assumptions"></div>
 <script>
 const data = {data};
+document.getElementById('fixture-status').textContent = data.summary_snippet.fixture_valid === true ? 'Fixture diagnostic: valid for the stated toy gate.' : data.summary_snippet.fixture_valid === false ? 'FIXTURE INVALID: do not interpret gate performance as adaptation.' : 'Fixture status unavailable: do not interpret gate performance.';
 const grid = data.grid;
 const arena = document.getElementById('arena');
 arena.style.gridTemplateColumns = 'repeat(' + grid + ', 1fr)';
