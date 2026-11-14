@@ -27,6 +27,9 @@ def main() -> int:
                 reward=row["reward"],
                 expert_cf=row["expert_cf"],
                 features=[],
+                walls=row.get("walls", []),
+                pellets=row.get("pellets", []),
+                predator=row.get("predator"),
             )
         )
     summary = json.loads(summary_path.read_text()) if summary_path.exists() else {}

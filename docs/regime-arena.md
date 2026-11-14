@@ -1,44 +1,29 @@
 # Regime Arena (synthetic toy)
 
-CPU-only demonstration of the Market Gate **pattern**: three legible movement experts, a tiny softmax gate over a short feature history, and deterministic safety outside the network. This is a **mechanism toy**, not evidence of trading, robotics, or novel ML.
+CPU-only demonstration of the Market Gate **pattern**. **v2** is revised exploratory measurement after independent review; v1 artifacts at `artifacts/regime-arena` are superseded for interpretation but preserved on disk.
 
-## Frozen hypothesis (before evaluation)
+## v2 evaluation (frozen before run)
 
-When the arena’s latent rule regime switches mid-episode (open field → maze → predator patrol), a tiny learned gate trained only on held-in world seeds will achieve higher mean **pellet score per step** on held-out seeds than:
+**Eval world IDs:** integers `2_000_000 + eval_seed * 100 + episode` for `eval_seeds=(2001, 2099)` and `episode in 0..eval_episodes-1`. **Train world IDs:** `1_000_000 + train_seed * 100 + episode` for `train_seeds=(1007, 1017, 1027)`. Sets are asserted disjoint by construction.
 
-- uniform blending,
-- each fixed expert alone,
-- a static blend fit only on training rollouts,
-- a simple causal adaptive reweighting baseline,
+**Hypothesis (descriptive only):** on held-out worlds with all three regimes present each episode, a tiny gate trained on train IDs alone may exceed uniform and static on mean pellet reward per step.
 
-and will remain below an **oracle** policy that sees the true regime id (evaluation comparator only).
+**Literal threshold (not “robust success”):** `learned_mean > uniform_mean` and `learned_mean > static_mean` on the frozen eval IDs. This boolean does not imply meaningful effect size, valid fixture, or trading/robotics utility.
 
-**Primary success check (held-out seeds 42 and 99 only):** learned gate mean score strictly greater than uniform **and** static, reported with seed-level means and a bootstrap 95% interval clustered by seed. **Null result is valid:** if the gate does not win, record falsification without tuning on eval seeds.
+**Stop:** complete train+eval batch, or global simulated transition budget (including counterfactual rollouts), or 90s wall clock per CLI invocation, or non-finite weights.
 
-**Stop conditions:** complete the preregistered train batch (seeds 7, 17, 27) and eval batch (42, 99); or 500k environment steps across all policies in one run; or non-finite weights; or 90s wall clock per CLI invocation.
-
-## Observable features
-
-The gate never receives the true regime id. Inputs are: pellet bearing, wall proximity, predator proximity, recent collection rate, and short history (8 frames). Regime id appears only in debug telemetry, HTML replay labels, and the oracle comparator.
+**Fixture gate:** before interpreting the learned gate, a diagnostic must show each expert has positive mean counterfactual advantage in at least one regime on train worlds (one-hot execution path). If not, mark `fixture_invalid` and do not claim adaptation.
 
 ## Baselines
 
-| Policy | Description |
-| --- | --- |
-| `uniform` | Equal expert weights |
-| `expert_seek` / `expert_wall` / `expert_evade` | Single expert only |
-| `static` | Fixed blend from training-set linear score fit (no eval tuning) |
-| `adaptive` | Causal exponential weights from per-step expert counterfactual rewards |
-| `learned` | NumPy MLP gate |
-| `oracle` | Regime-conditioned best expert (eval only) |
-
-All non-oracle policies share the same observations and step feedback. Counterfactual expert rewards are computed each step before blending.
+Uniform, each expert (one-hot via `blend_move`), static blend fit on **the same train episodes** as collection, softmax exponential adaptive baseline, learned gate. Oracle/regime-labeled policy is optional debug only — **not** an upper bound.
 
 ## Run
 
 ```sh
-/Users/msmart/local-model-gym/.venv/bin/python -m market_gate.regime_arena \
-  --output-dir /Users/msmart/.local/state/idea-factory/run-20261114/artifacts/regime-arena
+cd /Users/msmart/CodexWorktrees/idea-factory-20261114-hft
+PYTHONPATH=src /Users/msmart/local-model-gym/.venv/bin/python -m market_gate.regime_arena \
+  --output-dir /Users/msmart/.local/state/idea-factory/run-20261114/artifacts/regime-arena-v2
 ```
 
-Artifacts are written outside Git under the chosen output directory: `summary.json`, `replay.json`, `replay.html`.
+Artifacts stay outside Git. Use `--fast` for CI smoke (still must visit all three regimes).
